@@ -2,17 +2,18 @@ package syntax
 
 import (
 	"errors"
+	"unicode/utf8"
 )
 
 type Scanner struct {
-	source string
+	source []byte
 	tokens []*Token
 	start  int
 	cur    int
 	line   int
 }
 
-func NewScanner(source string) *Scanner {
+func NewScanner(source []byte) *Scanner {
 	scanner := new(Scanner)
 
 	scanner.source = source
@@ -264,36 +265,40 @@ func (scanner *Scanner) isEnd() bool {
 	return scanner.cur >= len(scanner.source)
 }
 
-func (scanner *Scanner) advance() byte {
-	c := scanner.source[scanner.cur]
-	scanner.cur++
-	return c
+func (scanner *Scanner) advance() rune {
+	r, width := utf8.DecodeRune(scanner.source[scanner.cur:])
+	scanner.cur += width
+	return r
 }
 
-func (scanner *Scanner) match(expected byte) bool {
+func (scanner *Scanner) match(expected rune) bool {
 	if scanner.isEnd() {
 		return false
 	}
-	if scanner.source[scanner.cur] != expected {
+	r, width := utf8.DecodeRune(scanner.source[scanner.cur:])
+	if r != expected {
 		return false
 	}
 
-	scanner.cur++
+	scanner.cur += width
 	return true
 }
 
-func (scanner *Scanner) peek() byte {
+func (scanner *Scanner) peek() rune {
 	if scanner.isEnd() {
 		return 0
 	}
-	return scanner.source[scanner.cur]
+	r, _ := utf8.DecodeRune(scanner.source[scanner.cur:])
+	return r
 }
 
-func (scanner *Scanner) peekNext() byte {
+func (scanner *Scanner) peekNext() rune {
 	if scanner.cur+1 >= len(scanner.source) {
 		return 0
 	}
-	return scanner.source[scanner.cur+1]
+	_, width := utf8.DecodeRune(scanner.source[scanner.cur:])
+	r, _ := utf8.DecodeRune(scanner.source[scanner.cur+width:])
+	return r
 }
 
 func (scanner *Scanner) number() {
@@ -309,10 +314,10 @@ func (scanner *Scanner) number() {
 		}
 	}
 
-	scanner.addTokenWithLiteral(TOKEN_NUMBER, scanner.source[scanner.start:scanner.cur])
+	scanner.addTokenWithLiteral(TOKEN_NUMBER, string(scanner.source[scanner.start:scanner.cur]))
 }
 
-func (scanner *Scanner) string(quote byte) error {
+func (scanner *Scanner) string(quote rune) error {
 	for scanner.peek() != quote && !scanner.isEnd() {
 		if scanner.peek() == '\n' {
 			return errors.New("unexpected new line")
@@ -327,7 +332,7 @@ func (scanner *Scanner) string(quote byte) error {
 	scanner.advance()
 
 	value := scanner.source[scanner.start+1 : scanner.cur-1]
-	scanner.addTokenWithLiteral(TOKEN_STRING, value)
+	scanner.addTokenWithLiteral(TOKEN_STRING, string(value))
 
 	return nil
 }
@@ -337,7 +342,7 @@ func (scanner *Scanner) identifier() {
 		scanner.advance()
 	}
 
-	text := scanner.source[scanner.start:scanner.cur]
+	text := string(scanner.source[scanner.start:scanner.cur])
 	tokenType, ok := keywords[text]
 	if ok {
 		scanner.addToken(tokenType)
@@ -346,20 +351,20 @@ func (scanner *Scanner) identifier() {
 	}
 }
 
-func (scanner *Scanner) isDigit(c byte) bool {
+func (scanner *Scanner) isDigit(c rune) bool {
 	return c >= '0' && c <= '9'
 }
 
-func (scanner *Scanner) isAlpha(c byte) bool {
+func (scanner *Scanner) isAlpha(c rune) bool {
 	return (c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		c == '_' || c == '$'
 }
 
-func (scanner *Scanner) isSpace(c byte) bool {
+func (scanner *Scanner) isSpace(c rune) bool {
 	return c == ' ' || c == '\r' || c == '\t'
 }
 
-func (scanner *Scanner) isAlphaNumeric(c byte) bool {
+func (scanner *Scanner) isAlphaNumeric(c rune) bool {
 	return scanner.isAlpha(c) || scanner.isDigit(c)
 }
