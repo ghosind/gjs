@@ -1,5 +1,7 @@
 package syntax
 
+import "strconv"
+
 type TokenType int
 
 const (
@@ -132,6 +134,29 @@ const (
 	TOKEN_SINGLE_LINE_COMMENT
 	TOKEN_MULTI_LINE_COMMENT
 )
+
+var tokenTypeString = "EOF(){}[]&&&&&=&=!!=!==:,....======>>=>>>>=>>>>>>=##!^^=<<=<<<<=--=--%%=||=" +
+	"||||=++=++??.????=;//=**=****=~identifierstringnumberargumentsasasyncawaitbreakcasecatch" +
+	"classconstcontinuedebuggerdefaultdeletedoelseenumevalexportextendsfalsefinallyforfromfunction" +
+	"getifimplementsimportininstanceofinterfaceletmetanewnullofpackageprivateprotectedpublicreturn" +
+	"setstaticsuperswitchtargetthisthrowtruetrytypeofundefinedvarvoidwhilewithyield" +
+	"newlinespacecommentcomment"
+
+var tokenTypeIndex = [...]int{0, 3, 4, 5, 6, 7, 8, 9, 10, 12, 15, 17, 18, 20, 23, 24, 25, 26, 29,
+	30, 32, 35, 36, 38, 40, 43, 46, 50, 51, 53, 54, 56, 57, 59, 61, 64, 65, 67, 69, 70, 72, 73, 75,
+	77, 80, 81, 83, 85, 86, 88, 90, 93, 94, 95, 97, 98, 100, 102, 105, 106, 116, 122, 128, 137, 139,
+	144, 149, 154, 158, 163, 168, 173, 181, 189, 196, 202, 204, 208, 212, 216, 222, 229, 234, 241,
+	244, 248, 256, 259, 261, 271, 277, 279, 289, 298, 301, 305, 308, 312, 314, 321, 328, 337, 343,
+	349, 352, 358, 363, 369, 375, 379, 384, 388, 391, 397, 406, 409, 413, 418, 422, 427, 434, 439,
+	446, 453,
+}
+
+func (ty TokenType) String() string {
+	if ty < TOKEN_EOF || int(ty) >= len(tokenTypeIndex)-1 {
+		return "token<unknown " + strconv.FormatInt(int64(ty), 10) + ">"
+	}
+	return "token<" + tokenTypeString[tokenTypeIndex[ty]:tokenTypeIndex[ty+1]] + ">"
+}
 
 type Token struct {
 	ToKenType TokenType
