@@ -119,6 +119,16 @@ func (scanner *Scanner) scanToken() error {
 		} else {
 			scanner.addToken(TOKEN_GREATER)
 		}
+	case '#':
+		if scanner.match('!') {
+			for scanner.peek() != '\n' && !scanner.isEnd() {
+				scanner.advance()
+			}
+			text := string(scanner.source[scanner.start:scanner.cur])
+			scanner.addTokenWithLiteral(TOKEN_HASH_BANG, text)
+		} else {
+			scanner.addToken(TOKEN_HASH)
+		}
 	case '^':
 		if scanner.match('=') {
 			scanner.addToken(TOKEN_HAT_EQUAL)
@@ -191,6 +201,8 @@ func (scanner *Scanner) scanToken() error {
 			for scanner.peek() != '\n' && !scanner.isEnd() {
 				scanner.advance()
 			}
+			text := string(scanner.source[scanner.start:scanner.cur])
+			scanner.addTokenWithLiteral(TOKEN_SINGLE_LINE_COMMENT, text)
 		case scanner.match('*'):
 			isClosed := false
 			for !scanner.isEnd() {
@@ -203,6 +215,8 @@ func (scanner *Scanner) scanToken() error {
 			if !isClosed {
 				return errors.New("invalid or unexpected token")
 			}
+			text := string(scanner.source[scanner.start:scanner.cur])
+			scanner.addTokenWithLiteral(TOKEN_MULTI_LINE_COMMENT, text)
 		case scanner.match('='):
 			scanner.addToken(TOKEN_SLASH_EQUAL)
 		default:

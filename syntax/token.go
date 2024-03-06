@@ -3,7 +3,7 @@ package syntax
 type TokenType int
 
 const (
-	TOKEN_INVALID TokenType = iota
+	TOKEN_EOF TokenType = iota
 
 	TOKEN_LEFT_PAREN    // (
 	TOKEN_RIGHT_PAREN   // )
@@ -32,6 +32,8 @@ const (
 	TOKEN_GREATER_GREATER_EQUAL         // >>=
 	TOKEN_GREATER_GREATER_GREATER       // >>>
 	TOKEN_GREATER_GREATER_GREATER_EQUAL // >>>=
+	TOKEN_HASH                          // #
+	TOKEN_HASH_BANG                     // #!
 	TOKEN_HAT                           // ^
 	TOKEN_HAT_EQUAL                     // ^=
 	TOKEN_LESS                          // <
@@ -127,8 +129,8 @@ const (
 
 	TOKEN_NEW_LINE
 	TOKEN_SPACE
-
-	TOKEN_EOF
+	TOKEN_SINGLE_LINE_COMMENT
+	TOKEN_MULTI_LINE_COMMENT
 )
 
 type Token struct {
