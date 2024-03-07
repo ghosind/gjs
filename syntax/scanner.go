@@ -238,7 +238,9 @@ func (scanner *Scanner) scanToken() error {
 		scanner.addToken(TOKEN_TILDE)
 
 	case '"', '\'', '`':
-		scanner.string(c)
+		if err := scanner.string(c); err != nil {
+			return err
+		}
 
 	case '\n':
 		scanner.addToken(TOKEN_NEW_LINE)
@@ -332,11 +334,25 @@ func (scanner *Scanner) number() {
 }
 
 func (scanner *Scanner) string(quote rune) error {
-	for scanner.peek() != quote && !scanner.isEnd() {
-		if scanner.peek() == '\n' {
+	isEscape := false
+	tok := scanner.peek()
+	for !scanner.isEnd() {
+		if tok == '\n' {
 			return errors.New("unexpected new line")
 		}
+
+		if !isEscape {
+			if tok == quote {
+				break
+			} else if tok == '\\' {
+				isEscape = true
+			}
+		} else {
+			isEscape = false
+		}
+
 		scanner.advance()
+		tok = scanner.peek()
 	}
 
 	if scanner.isEnd() {
