@@ -245,7 +245,7 @@ func (scanner *Scanner) scanToken() error {
 	case '\n':
 		scanner.addToken(TOKEN_NEW_LINE)
 		scanner.line++
-	case ' ', '\r', '\t':
+	case ' ', '\t', '\v', '\f', 0xA0, 0xFEFF:
 		// skip white-spaces
 		if scanner.isSpace(scanner.peek()) {
 			scanner.advance()
@@ -392,7 +392,7 @@ func (scanner *Scanner) isAlpha(c rune) bool {
 }
 
 func (scanner *Scanner) isSpace(c rune) bool {
-	return c == ' ' || c == '\r' || c == '\t'
+	return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == 0xA0 || c == 0xFEFF
 }
 
 func (scanner *Scanner) isAlphaNumeric(c rune) bool {
