@@ -121,7 +121,7 @@ func (scanner *Scanner) scanToken() error {
 		}
 	case '#':
 		if scanner.match('!') {
-			for scanner.peek() != '\n' && !scanner.isEnd() {
+			for !scanner.isLineTerminator(scanner.peek()) && !scanner.isEnd() {
 				scanner.advance()
 			}
 			text := string(scanner.source[scanner.start:scanner.cur])
@@ -242,7 +242,10 @@ func (scanner *Scanner) scanToken() error {
 			return err
 		}
 
-	case '\n':
+	case '\n', '\r', 0x2028, 0x2029:
+		if c == '\r' {
+			scanner.match('\n')
+		}
 		scanner.addToken(TOKEN_NEW_LINE)
 		scanner.line++
 	case ' ', '\t', '\v', '\f', 0xA0, 0xFEFF:
@@ -337,7 +340,7 @@ func (scanner *Scanner) string(quote rune) error {
 	isEscape := false
 	tok := scanner.peek()
 	for !scanner.isEnd() {
-		if tok == '\n' {
+		if scanner.isLineTerminator(tok) {
 			return errors.New("unexpected new line")
 		}
 
@@ -391,10 +394,20 @@ func (scanner *Scanner) isAlpha(c rune) bool {
 		c == '_' || c == '$'
 }
 
+func (scanner *Scanner) isAlphaNumeric(c rune) bool {
+	return scanner.isAlpha(c) || scanner.isDigit(c)
+}
+
 func (scanner *Scanner) isSpace(c rune) bool {
 	return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == 0xA0 || c == 0xFEFF
 }
 
-func (scanner *Scanner) isAlphaNumeric(c rune) bool {
-	return scanner.isAlpha(c) || scanner.isDigit(c)
+func (scanner *Scanner) isLineTerminator(c rune) bool {
+	if c == '\n' || c == 0x2028 || c == 0x2029 {
+		return true
+	} else if c == '\r' {
+		scanner.match('\n')
+		return true
+	}
+	return false
 }
