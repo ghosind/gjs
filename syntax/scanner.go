@@ -119,7 +119,7 @@ func (s *Scanner) scanToken() error {
 			for !s.isLineTerminator(s.peek()) && !s.isEnd() {
 				s.advance()
 			}
-			text := string(s.source[s.start:s.cur])
+			text := string(s.source[s.start+2 : s.cur])
 			s.addTokenWithLiteral(TOKEN_HASH_BANG, text)
 		} else {
 			s.addToken(TOKEN_HASH)
@@ -196,8 +196,7 @@ func (s *Scanner) scanToken() error {
 			for s.peek() != '\n' && !s.isEnd() {
 				s.advance()
 			}
-			text := string(s.source[s.start:s.cur])
-			s.addTokenWithLiteral(TOKEN_SINGLE_LINE_COMMENT, text)
+			s.addToken(TOKEN_SINGLE_LINE_COMMENT)
 		case s.match('*'):
 			isClosed := false
 			for !s.isEnd() {
@@ -210,8 +209,7 @@ func (s *Scanner) scanToken() error {
 			if !isClosed {
 				return errors.New("invalid or unexpected token")
 			}
-			text := string(s.source[s.start:s.cur])
-			s.addTokenWithLiteral(TOKEN_MULTI_LINE_COMMENT, text)
+			s.addToken(TOKEN_MULTI_LINE_COMMENT)
 		case s.match('='):
 			s.addToken(TOKEN_SLASH_EQUAL)
 		default:
@@ -261,7 +259,8 @@ func (s *Scanner) scanToken() error {
 }
 
 func (s *Scanner) addToken(tok TokenType) {
-	s.addTokenWithLiteral(tok, "")
+	text := string(s.source[s.start:s.cur])
+	s.addTokenWithLiteral(tok, text)
 }
 
 func (s *Scanner) addTokenWithLiteral(tok TokenType, lit string) {
@@ -325,7 +324,7 @@ func (s *Scanner) number() {
 		}
 	}
 
-	s.addTokenWithLiteral(TOKEN_NUMBER, string(s.source[s.start:s.cur]))
+	s.addToken(TOKEN_NUMBER)
 }
 
 func (s *Scanner) string(quote rune) error {
@@ -367,12 +366,11 @@ func (s *Scanner) identifier() {
 		s.advance()
 	}
 
-	text := string(s.source[s.start:s.cur])
-	tokenType, ok := keywords[text]
+	tokenType, ok := keywords[string(s.source[s.start:s.cur])]
 	if ok {
 		s.addToken(tokenType)
 	} else {
-		s.addTokenWithLiteral(TOKEN_IDENTIFIER, text)
+		s.addToken(TOKEN_IDENTIFIER)
 	}
 }
 
