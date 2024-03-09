@@ -13,253 +13,245 @@ type Scanner struct {
 	line   int
 }
 
-func NewScanner(source []byte) *Scanner {
-	scanner := new(Scanner)
-
-	scanner.source = source
-	scanner.tokens = make([]*Token, 0)
-	scanner.start = 0
-	scanner.cur = 0
-	scanner.line = 1
-
-	return scanner
+func (s *Scanner) Init(source []byte) {
+	s.source = source
+	s.tokens = make([]*Token, 0)
+	s.start = 0
+	s.cur = 0
+	s.line = 1
 }
 
-func (scanner *Scanner) ScanTokens() ([]*Token, error) {
-	for !scanner.isEnd() {
-		scanner.start = scanner.cur
-		if err := scanner.scanToken(); err != nil {
+func (s *Scanner) ScanTokens() ([]*Token, error) {
+	for !s.isEnd() {
+		s.start = s.cur
+		if err := s.scanToken(); err != nil {
 			return nil, err
 		}
 	}
 
-	scanner.tokens = append(scanner.tokens, &Token{
+	s.tokens = append(s.tokens, &Token{
 		ToKenType: TOKEN_EOF,
-		Line:      scanner.line,
+		Line:      s.line,
 	})
 
-	return scanner.tokens, nil
+	return s.tokens, nil
 }
 
-func (scanner *Scanner) scanToken() error {
-	c := scanner.advance()
+func (s *Scanner) scanToken() error {
+	c := s.advance()
 	switch c {
 	case '(':
-		scanner.addToken(TOKEN_LEFT_PAREN)
+		s.addToken(TOKEN_LEFT_PAREN)
 	case ')':
-		scanner.addToken(TOKEN_RIGHT_PAREN)
+		s.addToken(TOKEN_RIGHT_PAREN)
 	case '{':
-		scanner.addToken(TOKEN_LEFT_BRACE)
+		s.addToken(TOKEN_LEFT_BRACE)
 	case '}':
-		scanner.addToken(TOKEN_RIGHT_BRACE)
+		s.addToken(TOKEN_RIGHT_BRACE)
 	case '[':
-		scanner.addToken(TOKEN_LEFT_BRACKET)
+		s.addToken(TOKEN_LEFT_BRACKET)
 	case ']':
-		scanner.addToken(TOKEN_RIGHT_BRACKET)
-
+		s.addToken(TOKEN_RIGHT_BRACKET)
 	case '&':
-		if scanner.match('&') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_AND_AND_EQUAL)
+		if s.match('&') {
+			if s.match('=') {
+				s.addToken(TOKEN_AND_AND_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_AND_AND)
+				s.addToken(TOKEN_AND_AND)
 			}
-		} else if scanner.match('=') {
-			scanner.addToken(TOKEN_AND_EQUAL)
+		} else if s.match('=') {
+			s.addToken(TOKEN_AND_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_AND)
+			s.addToken(TOKEN_AND)
 		}
 	case '!':
-		if scanner.match('=') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_BANG_EQUAL_EQUAL)
+		if s.match('=') {
+			if s.match('=') {
+				s.addToken(TOKEN_BANG_EQUAL_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_BANG_EQUAL)
+				s.addToken(TOKEN_BANG_EQUAL)
 			}
 		} else {
-			scanner.addToken(TOKEN_BANG)
+			s.addToken(TOKEN_BANG)
 		}
 	case ':':
-		scanner.addToken(TOKEN_COLON)
+		s.addToken(TOKEN_COLON)
 	case ',':
-		scanner.addToken(TOKEN_COMMA)
+		s.addToken(TOKEN_COMMA)
 	case '.':
-		if scanner.peek() == '.' && scanner.peekNext() == '.' {
-			scanner.addToken(TOKEN_DOT_DOT_DOT)
-			scanner.advance()
-			scanner.advance()
+		if s.peek() == '.' && s.peekNext() == '.' {
+			s.addToken(TOKEN_DOT_DOT_DOT)
+			s.advance()
+			s.advance()
 		} else {
-			scanner.addToken(TOKEN_DOT)
+			s.addToken(TOKEN_DOT)
 		}
 	case '=':
-		if scanner.match('=') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_EQUAL_EQUAL_EQUAL)
+		if s.match('=') {
+			if s.match('=') {
+				s.addToken(TOKEN_EQUAL_EQUAL_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_EQUAL_EQUAL)
+				s.addToken(TOKEN_EQUAL_EQUAL)
 			}
 		} else {
-			scanner.addToken(TOKEN_EQUAL)
+			s.addToken(TOKEN_EQUAL)
 		}
 	case '>':
-		if scanner.match('=') {
-			scanner.addToken(TOKEN_GREATER_EQUAL)
-		} else if scanner.match('>') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_GREATER_GREATER_EQUAL)
-			} else if scanner.match('>') {
-				if scanner.match('=') {
-					scanner.addToken(TOKEN_GREATER_GREATER_GREATER_EQUAL)
+		if s.match('=') {
+			s.addToken(TOKEN_GREATER_EQUAL)
+		} else if s.match('>') {
+			if s.match('=') {
+				s.addToken(TOKEN_GREATER_GREATER_EQUAL)
+			} else if s.match('>') {
+				if s.match('=') {
+					s.addToken(TOKEN_GREATER_GREATER_GREATER_EQUAL)
 				} else {
-					scanner.addToken(TOKEN_GREATER_GREATER_GREATER)
+					s.addToken(TOKEN_GREATER_GREATER_GREATER)
 				}
 			} else {
-				scanner.addToken(TOKEN_GREATER_GREATER)
+				s.addToken(TOKEN_GREATER_GREATER)
 			}
 		} else {
-			scanner.addToken(TOKEN_GREATER)
+			s.addToken(TOKEN_GREATER)
 		}
 	case '#':
-		if scanner.match('!') {
-			for !scanner.isLineTerminator(scanner.peek()) && !scanner.isEnd() {
-				scanner.advance()
+		if s.match('!') {
+			for !s.isLineTerminator(s.peek()) && !s.isEnd() {
+				s.advance()
 			}
-			text := string(scanner.source[scanner.start:scanner.cur])
-			scanner.addTokenWithLiteral(TOKEN_HASH_BANG, text)
+			text := string(s.source[s.start:s.cur])
+			s.addTokenWithLiteral(TOKEN_HASH_BANG, text)
 		} else {
-			scanner.addToken(TOKEN_HASH)
+			s.addToken(TOKEN_HASH)
 		}
 	case '^':
-		if scanner.match('=') {
-			scanner.addToken(TOKEN_HAT_EQUAL)
+		if s.match('=') {
+			s.addToken(TOKEN_HAT_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_HAT)
+			s.addToken(TOKEN_HAT)
 		}
 	case '<':
-		if scanner.match('=') {
-			scanner.addToken(TOKEN_LESS_EQUAL)
-		} else if scanner.match('<') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_LESS_LESS_EQUAL)
+		if s.match('=') {
+			s.addToken(TOKEN_LESS_EQUAL)
+		} else if s.match('<') {
+			if s.match('=') {
+				s.addToken(TOKEN_LESS_LESS_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_LESS_LESS)
+				s.addToken(TOKEN_LESS_LESS)
 			}
 		} else {
-			scanner.addToken(TOKEN_LESS)
+			s.addToken(TOKEN_LESS)
 		}
 	case '-':
-		if scanner.match('-') {
-			scanner.addToken(TOKEN_MINUS_MINUS)
-		} else if scanner.match('=') {
-			scanner.addToken(TOKEN_MINUS_EQUAL)
+		if s.match('-') {
+			s.addToken(TOKEN_MINUS_MINUS)
+		} else if s.match('=') {
+			s.addToken(TOKEN_MINUS_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_MINUS)
+			s.addToken(TOKEN_MINUS)
 		}
 	case '%':
-		if scanner.match('=') {
-			scanner.addToken(TOKEN_PERCENT_EQUAL)
+		if s.match('=') {
+			s.addToken(TOKEN_PERCENT_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_PERCENT)
+			s.addToken(TOKEN_PERCENT)
 		}
 	case '|':
-		if scanner.match('|') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_PIPE_PIPE_EQUAL)
+		if s.match('|') {
+			if s.match('=') {
+				s.addToken(TOKEN_PIPE_PIPE_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_PIPE_PIPE)
+				s.addToken(TOKEN_PIPE_PIPE)
 			}
-		} else if scanner.match('=') {
-			scanner.addToken(TOKEN_PIPE_EQUAL)
+		} else if s.match('=') {
+			s.addToken(TOKEN_PIPE_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_PIPE)
+			s.addToken(TOKEN_PIPE)
 		}
 	case '+':
-		if scanner.match('+') {
-			scanner.addToken(TOKEN_PLUS_PLUS)
-		} else if scanner.match('=') {
-			scanner.addToken(TOKEN_PLUS_EQUAL)
+		if s.match('+') {
+			s.addToken(TOKEN_PLUS_PLUS)
+		} else if s.match('=') {
+			s.addToken(TOKEN_PLUS_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_PLUS)
+			s.addToken(TOKEN_PLUS)
 		}
 	case '?':
-		if scanner.match('?') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_QUESTION_QUESTION_EQUAL)
+		if s.match('?') {
+			if s.match('=') {
+				s.addToken(TOKEN_QUESTION_QUESTION_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_QUESTION_QUESTION)
+				s.addToken(TOKEN_QUESTION_QUESTION)
 			}
-		} else if scanner.match('.') {
-			scanner.addToken(TOKEN_QUESTION_DOT)
+		} else if s.match('.') {
+			s.addToken(TOKEN_QUESTION_DOT)
 		} else {
-			scanner.addToken(TOKEN_QUESTION)
+			s.addToken(TOKEN_QUESTION)
 		}
 	case ';':
-		scanner.addToken(TOKEN_SEMICOLON)
+		s.addToken(TOKEN_SEMICOLON)
 	case '/':
 		switch {
-		case scanner.match('/'):
-			for scanner.peek() != '\n' && !scanner.isEnd() {
-				scanner.advance()
+		case s.match('/'):
+			for s.peek() != '\n' && !s.isEnd() {
+				s.advance()
 			}
-			text := string(scanner.source[scanner.start:scanner.cur])
-			scanner.addTokenWithLiteral(TOKEN_SINGLE_LINE_COMMENT, text)
-		case scanner.match('*'):
+			text := string(s.source[s.start:s.cur])
+			s.addTokenWithLiteral(TOKEN_SINGLE_LINE_COMMENT, text)
+		case s.match('*'):
 			isClosed := false
-			for !scanner.isEnd() {
-				if scanner.match('*') && scanner.match('/') {
+			for !s.isEnd() {
+				if s.match('*') && s.match('/') {
 					isClosed = true
 					break
 				}
-				scanner.advance()
+				s.advance()
 			}
 			if !isClosed {
 				return errors.New("invalid or unexpected token")
 			}
-			text := string(scanner.source[scanner.start:scanner.cur])
-			scanner.addTokenWithLiteral(TOKEN_MULTI_LINE_COMMENT, text)
-		case scanner.match('='):
-			scanner.addToken(TOKEN_SLASH_EQUAL)
+			text := string(s.source[s.start:s.cur])
+			s.addTokenWithLiteral(TOKEN_MULTI_LINE_COMMENT, text)
+		case s.match('='):
+			s.addToken(TOKEN_SLASH_EQUAL)
 		default:
-			scanner.addToken(TOKEN_SLASH)
+			s.addToken(TOKEN_SLASH)
 		}
 	case '*':
-		if scanner.match('*') {
-			if scanner.match('=') {
-				scanner.addToken(TOKEN_STAR_STAR_EQUAL)
+		if s.match('*') {
+			if s.match('=') {
+				s.addToken(TOKEN_STAR_STAR_EQUAL)
 			} else {
-				scanner.addToken(TOKEN_STAR_STAR)
+				s.addToken(TOKEN_STAR_STAR)
 			}
-		} else if scanner.match('=') {
-			scanner.addToken(TOKEN_STAR_EQUAL)
+		} else if s.match('=') {
+			s.addToken(TOKEN_STAR_EQUAL)
 		} else {
-			scanner.addToken(TOKEN_STAR)
+			s.addToken(TOKEN_STAR)
 		}
 	case '~':
-		scanner.addToken(TOKEN_TILDE)
-
+		s.addToken(TOKEN_TILDE)
 	case '"', '\'', '`':
-		if err := scanner.string(c); err != nil {
+		if err := s.string(c); err != nil {
 			return err
 		}
-
 	case '\n', '\r', 0x2028, 0x2029:
 		if c == '\r' {
-			scanner.match('\n')
+			s.match('\n')
 		}
-		scanner.addToken(TOKEN_NEW_LINE)
-		scanner.line++
+		s.addToken(TOKEN_NEW_LINE)
+		s.line++
 	case ' ', '\t', '\v', '\f', 0xA0, 0xFEFF:
 		// skip white-spaces
-		if scanner.isSpace(scanner.peek()) {
-			scanner.advance()
+		if s.isSpace(s.peek()) {
+			s.advance()
 		}
-		scanner.addToken(TOKEN_SPACE)
-
+		s.addToken(TOKEN_SPACE)
 	default:
-		if scanner.isDigit(c) {
-			scanner.number()
-		} else if scanner.isAlpha(c) {
-			scanner.identifier()
+		if s.isDigit(c) {
+			s.number()
+		} else if s.isAlpha(c) {
+			s.identifier()
 		} else {
 			return errors.New("unexpected character")
 		}
@@ -268,79 +260,79 @@ func (scanner *Scanner) scanToken() error {
 	return nil
 }
 
-func (scanner *Scanner) addToken(tok TokenType) {
-	scanner.addTokenWithLiteral(tok, "")
+func (s *Scanner) addToken(tok TokenType) {
+	s.addTokenWithLiteral(tok, "")
 }
 
-func (scanner *Scanner) addTokenWithLiteral(tok TokenType, lit string) {
-	scanner.tokens = append(scanner.tokens, &Token{
+func (s *Scanner) addTokenWithLiteral(tok TokenType, lit string) {
+	s.tokens = append(s.tokens, &Token{
 		ToKenType: tok,
-		Line:      scanner.line,
+		Line:      s.line,
 		Literal:   lit,
 	})
 }
 
-func (scanner *Scanner) isEnd() bool {
-	return scanner.cur >= len(scanner.source)
+func (s *Scanner) isEnd() bool {
+	return s.cur >= len(s.source)
 }
 
-func (scanner *Scanner) advance() rune {
-	r, width := utf8.DecodeRune(scanner.source[scanner.cur:])
-	scanner.cur += width
+func (s *Scanner) advance() rune {
+	r, width := utf8.DecodeRune(s.source[s.cur:])
+	s.cur += width
 	return r
 }
 
-func (scanner *Scanner) match(expected rune) bool {
-	if scanner.isEnd() {
+func (s *Scanner) match(expected rune) bool {
+	if s.isEnd() {
 		return false
 	}
-	r, width := utf8.DecodeRune(scanner.source[scanner.cur:])
+	r, width := utf8.DecodeRune(s.source[s.cur:])
 	if r != expected {
 		return false
 	}
 
-	scanner.cur += width
+	s.cur += width
 	return true
 }
 
-func (scanner *Scanner) peek() rune {
-	if scanner.isEnd() {
+func (s *Scanner) peek() rune {
+	if s.isEnd() {
 		return 0
 	}
-	r, _ := utf8.DecodeRune(scanner.source[scanner.cur:])
+	r, _ := utf8.DecodeRune(s.source[s.cur:])
 	return r
 }
 
-func (scanner *Scanner) peekNext() rune {
-	if scanner.cur+1 >= len(scanner.source) {
+func (s *Scanner) peekNext() rune {
+	if s.cur+1 >= len(s.source) {
 		return 0
 	}
-	_, width := utf8.DecodeRune(scanner.source[scanner.cur:])
-	r, _ := utf8.DecodeRune(scanner.source[scanner.cur+width:])
+	_, width := utf8.DecodeRune(s.source[s.cur:])
+	r, _ := utf8.DecodeRune(s.source[s.cur+width:])
 	return r
 }
 
-func (scanner *Scanner) number() {
-	for scanner.isDigit(scanner.peek()) {
-		scanner.advance()
+func (s *Scanner) number() {
+	for s.isDigit(s.peek()) {
+		s.advance()
 	}
 
-	if scanner.peek() == '.' && scanner.isDigit(scanner.peekNext()) {
-		scanner.advance()
+	if s.peek() == '.' && s.isDigit(s.peekNext()) {
+		s.advance()
 
-		for scanner.isDigit(scanner.peek()) {
-			scanner.advance()
+		for s.isDigit(s.peek()) {
+			s.advance()
 		}
 	}
 
-	scanner.addTokenWithLiteral(TOKEN_NUMBER, string(scanner.source[scanner.start:scanner.cur]))
+	s.addTokenWithLiteral(TOKEN_NUMBER, string(s.source[s.start:s.cur]))
 }
 
-func (scanner *Scanner) string(quote rune) error {
+func (s *Scanner) string(quote rune) error {
 	isEscape := false
-	tok := scanner.peek()
-	for !scanner.isEnd() {
-		if scanner.isLineTerminator(tok) {
+	tok := s.peek()
+	for !s.isEnd() {
+		if s.isLineTerminator(tok) {
 			return errors.New("unexpected new line")
 		}
 
@@ -354,59 +346,59 @@ func (scanner *Scanner) string(quote rune) error {
 			isEscape = false
 		}
 
-		scanner.advance()
-		tok = scanner.peek()
+		s.advance()
+		tok = s.peek()
 	}
 
-	if scanner.isEnd() {
+	if s.isEnd() {
 		return errors.New("unterminated string")
 	}
 
-	scanner.advance()
+	s.advance()
 
-	value := scanner.source[scanner.start+1 : scanner.cur-1]
-	scanner.addTokenWithLiteral(TOKEN_STRING, string(value))
+	value := s.source[s.start+1 : s.cur-1]
+	s.addTokenWithLiteral(TOKEN_STRING, string(value))
 
 	return nil
 }
 
-func (scanner *Scanner) identifier() {
-	for scanner.isAlphaNumeric(scanner.peek()) {
-		scanner.advance()
+func (s *Scanner) identifier() {
+	for s.isAlphaNumeric(s.peek()) {
+		s.advance()
 	}
 
-	text := string(scanner.source[scanner.start:scanner.cur])
+	text := string(s.source[s.start:s.cur])
 	tokenType, ok := keywords[text]
 	if ok {
-		scanner.addToken(tokenType)
+		s.addToken(tokenType)
 	} else {
-		scanner.addTokenWithLiteral(TOKEN_IDENTIFIER, text)
+		s.addTokenWithLiteral(TOKEN_IDENTIFIER, text)
 	}
 }
 
-func (scanner *Scanner) isDigit(c rune) bool {
+func (s *Scanner) isDigit(c rune) bool {
 	return c >= '0' && c <= '9'
 }
 
-func (scanner *Scanner) isAlpha(c rune) bool {
+func (s *Scanner) isAlpha(c rune) bool {
 	return (c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		c == '_' || c == '$'
 }
 
-func (scanner *Scanner) isAlphaNumeric(c rune) bool {
-	return scanner.isAlpha(c) || scanner.isDigit(c)
+func (s *Scanner) isAlphaNumeric(c rune) bool {
+	return s.isAlpha(c) || s.isDigit(c)
 }
 
-func (scanner *Scanner) isSpace(c rune) bool {
+func (s *Scanner) isSpace(c rune) bool {
 	return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == 0xA0 || c == 0xFEFF
 }
 
-func (scanner *Scanner) isLineTerminator(c rune) bool {
+func (s *Scanner) isLineTerminator(c rune) bool {
 	if c == '\n' || c == 0x2028 || c == 0x2029 {
 		return true
 	} else if c == '\r' {
-		scanner.match('\n')
+		s.match('\n')
 		return true
 	}
 	return false

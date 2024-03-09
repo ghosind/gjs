@@ -140,10 +140,11 @@ var tokenTestCases []struct {
 
 func TestScanFirstToken(t *testing.T) {
 	a := assert.New(t)
+	s := new(Scanner)
 
 	for _, test := range tokenTestCases {
-		scanner := NewScanner([]byte(test.Source))
-		tokens, err := scanner.ScanTokens()
+		s.Init([]byte(test.Source))
+		tokens, err := s.ScanTokens()
 		a.NilNow(err)
 		a.GteNow(len(tokens), 1)
 		a.Equal(tokens[0].ToKenType, test.Token)
