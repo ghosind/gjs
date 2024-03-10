@@ -14,6 +14,168 @@ func (p *Parser) Init(tokens []*Token) {
 	p.cur = 0
 }
 
+func (p *Parser) statement() (Stmt, error) {
+	tok := p.peek()
+
+	switch tok.ToKenType {
+	case TOKEN_LEFT_BRACE:
+		return p.blockStmt()
+	case TOKEN_SEMICOLON:
+		p.consume(TOKEN_SEMICOLON)
+		return &EmptyStmt{}, nil
+	case TOKEN_IF:
+		return p.ifStat()
+	case TOKEN_DO:
+		return p.doWhileStmt()
+	case TOKEN_WHILE:
+		return p.whileStmt()
+	default:
+		return p.exprStmt()
+	}
+}
+
+func (p *Parser) declaration() (Stmt, error) {
+	// TODO
+	return nil, nil
+}
+
+func (p *Parser) whileStmt() (Stmt, error) {
+	p.consume(TOKEN_WHILE)
+
+	p.skip()
+	if _, err := p.consume(TOKEN_WHILE); err != nil {
+		return nil, err
+	}
+
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	if _, err = p.consume(TOKEN_RIGHT_PAREN); err != nil {
+		return nil, err
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ForStmt{
+		Cond: expr,
+		Body: body,
+	}, nil
+}
+
+func (p *Parser) doWhileStmt() (Stmt, error) {
+	p.consume(TOKEN_DO)
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	if _, err := p.consume(TOKEN_WHILE); err != nil {
+		return nil, err
+	}
+	p.skip()
+	if _, err = p.consume(TOKEN_LEFT_PAREN); err != nil {
+		return nil, err
+	}
+
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	if _, err = p.consume(TOKEN_RIGHT_PAREN); err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	p.consume(TOKEN_SEMICOLON)
+
+	return &DoWhileStmt{
+		Body: body,
+		Cond: expr,
+	}, nil
+}
+
+func (p *Parser) ifStat() (Stmt, error) {
+	p.consume(TOKEN_IF)
+
+	p.skip()
+	_, err := p.consume(TOKEN_LEFT_PAREN)
+	if err != nil {
+		return nil, err
+	}
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	thenStmt, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	var elseStmt Stmt
+	if p.match(TOKEN_ELSE) {
+		elseStmt, err = p.statement()
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return &IfStmt{
+		Cond: expr,
+		Then: thenStmt,
+		Else: elseStmt,
+	}, nil
+}
+
+func (p *Parser) blockStmt() (Stmt, error) {
+	var stmt Stmt
+	var err error
+
+	p.consume(TOKEN_LEFT_BRACE)
+	list := make([]Stmt, 0)
+
+	p.skip()
+	for !p.match(TOKEN_RIGHT_BRACE) {
+		p.skip()
+		tok := p.peek()
+
+		if tok.ToKenType == TOKEN_CONST || tok.ToKenType == TOKEN_LET || tok.ToKenType == TOKEN_CLASS {
+			stmt, err = p.declaration()
+		} else {
+			stmt, err = p.statement()
+		}
+		if err != nil {
+			return nil, err
+		}
+		list = append(list, stmt)
+	}
+
+	return &BlockStmt{List: list}, nil
+}
+
+func (p *Parser) exprStmt() (Stmt, error) {
+	expr, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skip()
+	p.consume(TOKEN_SEMICOLON)
+
+	return &ExprStmt{Expr: expr}, nil
+}
+
 func (p *Parser) expression() (Expr, error) {
 	// TODO: comma operation
 	return p.assignmentExpr()
