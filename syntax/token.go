@@ -161,5 +161,6 @@ func (ty TokenType) String() string {
 type Token struct {
 	ToKenType TokenType
 	Line      int
+	Col       int
 	Literal   string
 }

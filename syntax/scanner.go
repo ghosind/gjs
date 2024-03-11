@@ -11,6 +11,8 @@ type Scanner struct {
 	start  int
 	cur    int
 	line   int
+	col    int
+	width  int
 }
 
 func (s *Scanner) Init(source []byte) {
@@ -19,19 +21,25 @@ func (s *Scanner) Init(source []byte) {
 	s.start = 0
 	s.cur = 0
 	s.line = 1
+	s.col = 1
+	s.width = 0
 }
 
 func (s *Scanner) ScanTokens() ([]*Token, error) {
 	for !s.isEnd() {
 		s.start = s.cur
+		s.width = 0
 		if err := s.scanToken(); err != nil {
 			return nil, err
 		}
+
+		s.col += s.width
 	}
 
 	s.tokens = append(s.tokens, &Token{
 		ToKenType: TOKEN_EOF,
 		Line:      s.line,
+		Col:       s.col,
 	})
 
 	return s.tokens, nil
@@ -203,6 +211,10 @@ func (s *Scanner) scanToken() error {
 				if s.match('*') && s.match('/') {
 					isClosed = true
 					break
+				} else if s.isLineTerminator(s.peek()) {
+					s.line++
+					s.col = 0
+					s.width = 0
 				}
 				s.advance()
 			}
@@ -239,6 +251,7 @@ func (s *Scanner) scanToken() error {
 		}
 		s.addToken(TOKEN_NEW_LINE)
 		s.line++
+		s.col = 0
 	case ' ', '\t', '\v', '\f', 0xA0, 0xFEFF:
 		// skip white-spaces
 		if s.isSpace(s.peek()) {
@@ -267,6 +280,7 @@ func (s *Scanner) addTokenWithLiteral(tok TokenType, lit string) {
 	s.tokens = append(s.tokens, &Token{
 		ToKenType: tok,
 		Line:      s.line,
+		Col:       s.col,
 		Literal:   lit,
 	})
 }
@@ -278,6 +292,7 @@ func (s *Scanner) isEnd() bool {
 func (s *Scanner) advance() rune {
 	r, width := utf8.DecodeRune(s.source[s.cur:])
 	s.cur += width
+	s.width++
 	return r
 }
 
@@ -291,6 +306,7 @@ func (s *Scanner) match(expected rune) bool {
 	}
 
 	s.cur += width
+	s.width++
 	return true
 }
 
