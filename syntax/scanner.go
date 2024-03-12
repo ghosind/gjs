@@ -207,14 +207,17 @@ func (s *Scanner) scanToken() error {
 			s.addToken(TOKEN_SINGLE_LINE_COMMENT)
 		case s.match('*'):
 			isClosed := false
+			line := s.line
+			col := s.col
+			width := s.width
 			for !s.isEnd() {
 				if s.match('*') && s.match('/') {
 					isClosed = true
 					break
 				} else if s.isLineTerminator(s.peek()) {
-					s.line++
-					s.col = 0
-					s.width = 0
+					line++
+					col = 0
+					width = 0
 				}
 				s.advance()
 			}
@@ -222,6 +225,9 @@ func (s *Scanner) scanToken() error {
 				return errors.New("invalid or unexpected token")
 			}
 			s.addToken(TOKEN_MULTI_LINE_COMMENT)
+			s.line = line
+			s.col = col + 2
+			s.width = width + 2
 		case s.match('='):
 			s.addToken(TOKEN_SLASH_EQUAL)
 		default:
