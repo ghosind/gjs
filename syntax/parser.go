@@ -18,15 +18,32 @@ func (p *Parser) statement() (Stmt, error) {
 	tok := p.peek()
 
 	switch tok.ToKenType {
+	case TOKEN_BREAK:
+		return p.breakStmt(), nil
+	case TOKEN_CONTINUE:
+		return p.continueStmt(), nil
+	case TOKEN_DEBUGGER:
+		p.consume(TOKEN_SEMICOLON)
+		return &DebuggerStmt{}, nil
+	case TOKEN_DO:
+		return p.doWhileStmt()
+	case TOKEN_FOR:
+		return p.forStmt()
+	case TOKEN_IF:
+		return p.ifStat()
 	case TOKEN_LEFT_BRACE:
 		return p.blockStmt()
+	case TOKEN_RETURN:
+		return p.returnStmt()
 	case TOKEN_SEMICOLON:
 		p.consume(TOKEN_SEMICOLON)
 		return &EmptyStmt{}, nil
-	case TOKEN_IF:
-		return p.ifStat()
-	case TOKEN_DO:
-		return p.doWhileStmt()
+	case TOKEN_SWITCH:
+		return p.switchStmt()
+	case TOKEN_THROW:
+		return p.throwStmt()
+	case TOKEN_TRY:
+		return p.tryStmt()
 	case TOKEN_WHILE:
 		return p.whileStmt()
 	default:
@@ -39,11 +56,171 @@ func (p *Parser) declaration() (Stmt, error) {
 	return nil, nil
 }
 
+func (p *Parser) tryStmt() (Stmt, error) {
+	// TODO
+	return &TryStmt{}, nil
+}
+
+func (p *Parser) throwStmt() (Stmt, error) {
+	p.consume(TOKEN_THROW)
+
+	p.skip(TOKEN_SPACE, TOKEN_MULTI_LINE_COMMENT)
+
+	result, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	p.skipAndConsume(TOKEN_SEMICOLON)
+
+	return &ThrowStmt{
+		Result: result,
+	}, nil
+}
+
+func (p *Parser) switchStmt() (Stmt, error) {
+	p.consume(TOKEN_SWITCH)
+
+	if _, err := p.skipAndConsume(TOKEN_LEFT_PAREN); err != nil {
+		return nil, err
+	}
+	tag, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+	if _, err := p.skipAndConsume(TOKEN_RIGHT_PAREN); err != nil {
+		return nil, err
+	}
+	if _, err := p.skipAndConsume(TOKEN_LEFT_BRACE); err != nil {
+		return nil, err
+	}
+
+	body := make([]*CaseClause, 0)
+	for !p.skipAndMatch(TOKEN_RIGHT_BRACE) {
+		// TODO
+	}
+
+	return &SwitchStmt{
+		Tag:  tag,
+		Body: body,
+	}, nil
+}
+
+func (p *Parser) returnStmt() (Stmt, error) {
+	p.consume(TOKEN_RETURN)
+
+	p.skip(TOKEN_SPACE, TOKEN_MULTI_LINE_COMMENT)
+
+	cur := p.cur
+	result, err := p.expression()
+	if err != nil {
+		return nil, err
+	} else if result == nil {
+		p.cur = cur
+	}
+
+	p.skipAndConsume(TOKEN_SEMICOLON)
+
+	return &ReturnStmt{
+		Result: result,
+	}, nil
+}
+
+func (p *Parser) breakStmt() Stmt {
+	var label Expr
+
+	p.consume(TOKEN_BREAK)
+
+	p.skip(TOKEN_SPACE, TOKEN_MULTI_LINE_COMMENT)
+	if p.match(TOKEN_IDENTIFIER) {
+		tok := p.previous()
+		label = &Identifier{Value: tok.Literal}
+	}
+
+	p.skipAndConsume(TOKEN_SEMICOLON)
+
+	return &BreakStmt{
+		Label: label,
+	}
+}
+
+func (p *Parser) continueStmt() Stmt {
+	var label Expr
+
+	p.consume(TOKEN_CONTINUE)
+
+	p.skip(TOKEN_SPACE, TOKEN_MULTI_LINE_COMMENT)
+	if p.match(TOKEN_IDENTIFIER) {
+		tok := p.previous()
+		label = &Identifier{Value: tok.Literal}
+	}
+
+	p.skipAndConsume(TOKEN_SEMICOLON)
+
+	return &ContinueStmt{
+		Label: label,
+	}
+}
+
+func (p *Parser) forStmt() (Stmt, error) {
+	p.consume(TOKEN_FOR)
+
+	if _, err := p.skipAndConsume(TOKEN_LEFT_PAREN); err != nil {
+		return nil, err
+	}
+
+	var init Expr
+	var post Expr
+	var err error
+
+	if !p.skipAndMatch(TOKEN_SEMICOLON) {
+		init, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.skipAndConsume(TOKEN_SEMICOLON); err != nil {
+			return nil, err
+		}
+	}
+
+	cond, err := p.expression()
+	if err != nil {
+		return nil, err
+	}
+
+	if _, err := p.skipAndConsume(TOKEN_SEMICOLON); err != nil {
+		return nil, err
+	}
+
+	if p.skipAndMatch(TOKEN_RIGHT_PAREN) {
+		post, err = p.expression()
+		if err != nil {
+			return nil, err
+		}
+
+		if _, err := p.skipAndConsume(TOKEN_RIGHT_PAREN); err != nil {
+			return nil, err
+		}
+	}
+
+	body, err := p.statement()
+	if err != nil {
+		return nil, err
+	}
+
+	return &ForStmt{
+		Init: init,
+		Cond: cond,
+		Post: post,
+		Body: body,
+	}, nil
+}
+
 func (p *Parser) whileStmt() (Stmt, error) {
 	p.consume(TOKEN_WHILE)
 
-	p.skip()
-	if _, err := p.consume(TOKEN_WHILE); err != nil {
+	if _, err := p.skipAndConsume(TOKEN_WHILE); err != nil {
 		return nil, err
 	}
 
@@ -52,8 +229,7 @@ func (p *Parser) whileStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if _, err = p.consume(TOKEN_RIGHT_PAREN); err != nil {
+	if _, err = p.skipAndConsume(TOKEN_RIGHT_PAREN); err != nil {
 		return nil, err
 	}
 
@@ -76,12 +252,10 @@ func (p *Parser) doWhileStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if _, err := p.consume(TOKEN_WHILE); err != nil {
+	if _, err := p.skipAndConsume(TOKEN_WHILE); err != nil {
 		return nil, err
 	}
-	p.skip()
-	if _, err = p.consume(TOKEN_LEFT_PAREN); err != nil {
+	if _, err = p.skipAndConsume(TOKEN_LEFT_PAREN); err != nil {
 		return nil, err
 	}
 
@@ -90,13 +264,11 @@ func (p *Parser) doWhileStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if _, err = p.consume(TOKEN_RIGHT_PAREN); err != nil {
+	if _, err = p.skipAndConsume(TOKEN_RIGHT_PAREN); err != nil {
 		return nil, err
 	}
 
-	p.skip()
-	p.consume(TOKEN_SEMICOLON)
+	p.skipAndConsume(TOKEN_SEMICOLON)
 
 	return &DoWhileStmt{
 		Body: body,
@@ -107,8 +279,7 @@ func (p *Parser) doWhileStmt() (Stmt, error) {
 func (p *Parser) ifStat() (Stmt, error) {
 	p.consume(TOKEN_IF)
 
-	p.skip()
-	_, err := p.consume(TOKEN_LEFT_PAREN)
+	_, err := p.skipAndConsume(TOKEN_LEFT_PAREN)
 	if err != nil {
 		return nil, err
 	}
@@ -122,9 +293,8 @@ func (p *Parser) ifStat() (Stmt, error) {
 		return nil, err
 	}
 
-	p.skip()
 	var elseStmt Stmt
-	if p.match(TOKEN_ELSE) {
+	if p.skipAndMatch(TOKEN_ELSE) {
 		elseStmt, err = p.statement()
 		if err != nil {
 			return nil, err
@@ -145,9 +315,7 @@ func (p *Parser) blockStmt() (Stmt, error) {
 	p.consume(TOKEN_LEFT_BRACE)
 	list := make([]Stmt, 0)
 
-	p.skip()
-	for !p.match(TOKEN_RIGHT_BRACE) {
-		p.skip()
+	for !p.skipAndMatch(TOKEN_RIGHT_BRACE) {
 		tok := p.peek()
 
 		if tok.ToKenType == TOKEN_CONST || tok.ToKenType == TOKEN_LET || tok.ToKenType == TOKEN_CLASS {
@@ -170,8 +338,7 @@ func (p *Parser) exprStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	p.skip()
-	p.consume(TOKEN_SEMICOLON)
+	p.skipAndConsume(TOKEN_SEMICOLON)
 
 	return &ExprStmt{Expr: expr}, nil
 }
@@ -225,15 +392,13 @@ func (p *Parser) conditionalExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_QUESTION) {
+	if p.skipAndMatch(TOKEN_QUESTION) {
 		trueExpr, err := p.assignmentExpr()
 		if err != nil {
 			return nil, err
 		}
 
-		p.skip()
-		_, err = p.consume(TOKEN_COLON)
+		_, err = p.skipAndConsume(TOKEN_COLON)
 		if err != nil {
 			return nil, err
 		}
@@ -260,8 +425,7 @@ func (p *Parser) logicalOrExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_PIPE_PIPE) {
+	if p.skipAndMatch(TOKEN_PIPE_PIPE) {
 		op := p.previous()
 		right, err := p.logicalAndExpr()
 		if err != nil {
@@ -279,8 +443,7 @@ func (p *Parser) logicalAndExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_AND_AND) {
+	if p.skipAndMatch(TOKEN_AND_AND) {
 		op := p.previous()
 		right, err := p.bitwiseOrExpr()
 		if err != nil {
@@ -298,8 +461,7 @@ func (p *Parser) bitwiseOrExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_PIPE) {
+	if p.skipAndMatch(TOKEN_PIPE) {
 		op := p.previous()
 		right, err := p.bitwiseXorExpr()
 		if err != nil {
@@ -317,8 +479,7 @@ func (p *Parser) bitwiseXorExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_HAT) {
+	if p.skipAndMatch(TOKEN_HAT) {
 		op := p.previous()
 		right, err := p.bitwiseAndExpr()
 		if err != nil {
@@ -336,8 +497,7 @@ func (p *Parser) bitwiseAndExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_AND) {
+	if p.skipAndMatch(TOKEN_AND) {
 		op := p.previous()
 		right, err := p.equalityExpr()
 		if err != nil {
@@ -355,8 +515,7 @@ func (p *Parser) equalityExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(
+	if p.skipAndMatch(
 		TOKEN_EQUAL_EQUAL,
 		TOKEN_BANG_EQUAL,
 		TOKEN_EQUAL_EQUAL_EQUAL,
@@ -379,8 +538,7 @@ func (p *Parser) relationalExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(
+	if p.skipAndMatch(
 		TOKEN_LESS,
 		TOKEN_GREATER,
 		TOKEN_LESS_EQUAL,
@@ -405,8 +563,7 @@ func (p *Parser) shiftExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_LESS_LESS, TOKEN_GREATER_GREATER, TOKEN_GREATER_GREATER_GREATER) {
+	if p.skipAndMatch(TOKEN_LESS_LESS, TOKEN_GREATER_GREATER, TOKEN_GREATER_GREATER_GREATER) {
 		op := p.previous()
 		right, err := p.additiveExpr()
 		if err != nil {
@@ -424,8 +581,7 @@ func (p *Parser) additiveExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_PLUS, TOKEN_MINUS) {
+	if p.skipAndMatch(TOKEN_PLUS, TOKEN_MINUS) {
 		op := p.previous()
 		right, err := p.multiplicativeExpr()
 		if err != nil {
@@ -443,8 +599,7 @@ func (p *Parser) multiplicativeExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_STAR, TOKEN_SLASH, TOKEN_PERCENT) {
+	if p.skipAndMatch(TOKEN_STAR, TOKEN_SLASH, TOKEN_PERCENT) {
 		op := p.previous()
 		right, err := p.exponentiationExpr()
 		if err != nil {
@@ -462,8 +617,7 @@ func (p *Parser) exponentiationExpr() (Expr, error) {
 		return nil, err
 	}
 
-	p.skip()
-	if p.match(TOKEN_STAR_STAR) {
+	if p.skipAndMatch(TOKEN_STAR_STAR) {
 		op := p.previous()
 		right, err := p.unaryExpr()
 		if err != nil {
@@ -476,8 +630,7 @@ func (p *Parser) exponentiationExpr() (Expr, error) {
 }
 
 func (p *Parser) unaryExpr() (Expr, error) {
-	p.skip()
-	if p.match(TOKEN_DELETE,
+	if p.skipAndMatch(TOKEN_DELETE,
 		TOKEN_VOID,
 		TOKEN_TYPEOF,
 		TOKEN_PLUS,
@@ -497,8 +650,7 @@ func (p *Parser) unaryExpr() (Expr, error) {
 }
 
 func (p *Parser) updateExpr() (Expr, error) {
-	p.skip()
-	if p.match(TOKEN_PLUS_PLUS, TOKEN_MINUS) {
+	if p.skipAndMatch(TOKEN_PLUS_PLUS, TOKEN_MINUS) {
 		op := p.previous()
 		expr, err := p.unaryExpr()
 		if err != nil {
@@ -525,8 +677,7 @@ func (p *Parser) leftHandSideExpr() (Expr, error) {
 }
 
 func (p *Parser) newExpr() (Expr, error) {
-	p.skip()
-	if p.match(TOKEN_NEW) {
+	if p.skipAndMatch(TOKEN_NEW) {
 		op := p.previous()
 		expr, err := p.newExpr()
 		if err != nil {
@@ -597,6 +748,12 @@ func (p *Parser) skip(skipTypes ...TokenType) {
 	}
 }
 
+func (p *Parser) skipAndConsume(tok TokenType) (*Token, error) {
+	p.skip()
+
+	return p.consume(tok)
+}
+
 func (p *Parser) match(tokTypes ...TokenType) bool {
 	tok := p.peek()
 	for _, tokType := range tokTypes {
@@ -606,6 +763,12 @@ func (p *Parser) match(tokTypes ...TokenType) bool {
 		}
 	}
 	return false
+}
+
+func (p *Parser) skipAndMatch(tokTypes ...TokenType) bool {
+	p.skip()
+
+	return p.match(tokTypes...)
 }
 
 func (p *Parser) advance() *Token {

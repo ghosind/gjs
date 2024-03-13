@@ -63,6 +63,42 @@ type (
 		Body Stmt
 		Cond Expr
 	}
+
+	ContinueStmt struct {
+		Label Expr
+	}
+
+	BreakStmt struct {
+		Label Expr
+	}
+
+	ReturnStmt struct {
+		Result Expr
+	}
+
+	SwitchStmt struct {
+		Tag  Expr
+		Body []*CaseClause
+	}
+
+	ThrowStmt struct {
+		Result Expr
+	}
+
+	TryStmt struct {
+		Try     Stmt
+		Catch   Stmt
+		Finally Stmt
+	}
+
+	DebuggerStmt struct{}
+)
+
+type (
+	CaseClause struct {
+		Case Expr
+		Body []Stmt
+	}
 )
 
 type LitKind int
