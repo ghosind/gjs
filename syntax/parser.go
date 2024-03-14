@@ -2,6 +2,7 @@ package syntax
 
 import (
 	"errors"
+	"fmt"
 )
 
 type Parser struct {
@@ -15,6 +16,7 @@ func (p *Parser) Init(tokens []*Token) {
 }
 
 func (p *Parser) statement() (Stmt, error) {
+	p.skip()
 	tok := p.peek()
 
 	switch tok.ToKenType {
@@ -193,7 +195,7 @@ func (p *Parser) forStmt() (Stmt, error) {
 		return nil, err
 	}
 
-	if p.skipAndMatch(TOKEN_RIGHT_PAREN) {
+	if !p.skipAndMatch(TOKEN_RIGHT_PAREN) {
 		post, err = p.expression()
 		if err != nil {
 			return nil, err
@@ -220,7 +222,7 @@ func (p *Parser) forStmt() (Stmt, error) {
 func (p *Parser) whileStmt() (Stmt, error) {
 	p.consume(TOKEN_WHILE)
 
-	if _, err := p.skipAndConsume(TOKEN_WHILE); err != nil {
+	if _, err := p.skipAndConsume(TOKEN_LEFT_PAREN); err != nil {
 		return nil, err
 	}
 
@@ -279,12 +281,14 @@ func (p *Parser) doWhileStmt() (Stmt, error) {
 func (p *Parser) ifStat() (Stmt, error) {
 	p.consume(TOKEN_IF)
 
-	_, err := p.skipAndConsume(TOKEN_LEFT_PAREN)
-	if err != nil {
+	if _, err := p.skipAndConsume(TOKEN_LEFT_PAREN); err != nil {
 		return nil, err
 	}
 	expr, err := p.expression()
 	if err != nil {
+		return nil, err
+	}
+	if _, err := p.skipAndConsume(TOKEN_RIGHT_PAREN); err != nil {
 		return nil, err
 	}
 
@@ -316,13 +320,7 @@ func (p *Parser) blockStmt() (Stmt, error) {
 	list := make([]Stmt, 0)
 
 	for !p.skipAndMatch(TOKEN_RIGHT_BRACE) {
-		tok := p.peek()
-
-		if tok.ToKenType == TOKEN_CONST || tok.ToKenType == TOKEN_LET || tok.ToKenType == TOKEN_CLASS {
-			stmt, err = p.declaration()
-		} else {
-			stmt, err = p.statement()
-		}
+		stmt, err = p.statement()
 		if err != nil {
 			return nil, err
 		}
@@ -732,7 +730,7 @@ func (p *Parser) consume(tok TokenType) (*Token, error) {
 	if p.peek().ToKenType == tok {
 		return p.advance(), nil
 	}
-	return nil, errors.New("unexpected token")
+	return nil, fmt.Errorf("unexpected token %s", tok)
 }
 
 func (p *Parser) skip(skipTypes ...TokenType) {
