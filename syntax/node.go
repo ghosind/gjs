@@ -14,6 +14,16 @@ type (
 		Expr
 	}
 
+	Elision struct{}
+
+	SpreadElem struct {
+		Value Expr
+	}
+
+	ArrayLiteral struct {
+		ElemList []Expr
+	}
+
 	UnaryExpr struct {
 		Op    TokenType
 		Value Expr

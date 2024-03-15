@@ -352,8 +352,7 @@ func (p *Parser) assignmentExpr() (Expr, error) {
 	if err != nil {
 		return nil, err
 	} else if expr != nil {
-		p.skip()
-		if p.match(TOKEN_EQUAL,
+		if p.skipAndMatch(TOKEN_EQUAL,
 			TOKEN_STAR_EQUAL,
 			TOKEN_SLASH_EQUAL,
 			TOKEN_PERCENT_EQUAL,
@@ -696,8 +695,45 @@ func (p *Parser) memberExpr() (Expr, error) {
 	return expr, nil
 }
 
-func (p *Parser) primaryExpr() (Expr, error) {
-	var expr Expr
+func (p *Parser) arrayLiteral() (Expr, error) {
+	list := make([]Expr, 0)
+
+	for !p.skipAndMatch(TOKEN_RIGHT_BRACKET) {
+		tok := p.peek()
+		switch tok.ToKenType {
+		case TOKEN_COMMA:
+			list = append(list, &Elision{})
+			p.advance()
+		case TOKEN_DOT_DOT_DOT:
+			p.advance()
+			expr, err := p.assignmentExpr()
+			if err != nil {
+				return nil, err
+			} else if expr == nil {
+				return nil, fmt.Errorf("unexpected token %v", p.peek())
+			}
+			list = append(list, &SpreadElem{
+				Value: expr,
+			})
+		default:
+			expr, err := p.assignmentExpr()
+			if err != nil {
+				return nil, err
+			} else if expr == nil {
+				return nil, fmt.Errorf("unexpected token %v", tok)
+			}
+			list = append(list, expr)
+		}
+
+		p.skipAndMatch(TOKEN_COMMA)
+	}
+
+	return &ArrayLiteral{
+		ElemList: list,
+	}, nil
+}
+
+func (p *Parser) primaryExpr() (expr Expr, err error) {
 
 	p.skip()
 
@@ -714,13 +750,17 @@ func (p *Parser) primaryExpr() (Expr, error) {
 		expr = &Literal{Value: tok.Literal, Kind: LitNumber}
 	case TOKEN_STRING:
 		expr = &Literal{Value: tok.Literal, Kind: LitString}
+	case TOKEN_LEFT_BRACKET:
+		p.advance()
+		expr, err = p.arrayLiteral()
+		return
 	default:
 		return nil, nil
 	}
 
 	p.advance()
 
-	return expr, nil
+	return
 }
 
 func (p *Parser) consume(tok TokenType) (*Token, error) {
