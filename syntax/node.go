@@ -44,10 +44,23 @@ type (
 )
 
 type (
+	Decl interface{}
+
+	VarDecl struct {
+		Name  *Identifier
+		Value Expr
+	}
+)
+
+type (
 	Stmt interface{}
 
 	BlockStmt struct {
 		List []Stmt
+	}
+
+	VarStmt struct {
+		Decls []Decl
 	}
 
 	EmptyStmt struct{}
@@ -97,7 +110,7 @@ type (
 
 	TryStmt struct {
 		Try        Stmt
-		CatchParam Identifier
+		CatchParam *Identifier
 		Catch      Stmt
 		Finally    Stmt
 	}

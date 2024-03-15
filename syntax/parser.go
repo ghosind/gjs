@@ -46,6 +46,8 @@ func (p *Parser) statement() (Stmt, error) {
 		return p.throwStmt()
 	case TOKEN_TRY:
 		return p.tryStmt()
+	case TOKEN_VAR:
+		return p.varStmt()
 	case TOKEN_WHILE:
 		return p.whileStmt()
 	default:
@@ -309,6 +311,40 @@ func (p *Parser) ifStat() (Stmt, error) {
 		Cond: expr,
 		Then: thenStmt,
 		Else: elseStmt,
+	}, nil
+}
+
+func (p *Parser) varStmt() (Stmt, error) {
+	p.consume(TOKEN_VAR)
+	decls := make([]Decl, 0)
+
+	for p.skipAndMatch(TOKEN_IDENTIFIER) {
+		name := p.previous()
+		decl := &VarDecl{
+			Name: &Identifier{
+				Value: name.Literal,
+			},
+		}
+		if p.skipAndMatch(TOKEN_EQUAL) {
+			expr, err := p.assignmentExpr()
+			if err != nil {
+				return nil, err
+			} else if expr == nil {
+				return nil, fmt.Errorf("unexpected token %v", p.peek())
+			}
+			decl.Value = expr
+		}
+
+		decls = append(decls, decl)
+		if !p.skipAndMatch(TOKEN_COMMA) {
+			break
+		}
+	}
+
+	p.skipAndConsume(TOKEN_SEMICOLON)
+
+	return &VarStmt{
+		Decls: decls,
 	}, nil
 }
 
