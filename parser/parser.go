@@ -10,8 +10,8 @@ import (
 )
 
 type Parser struct {
-	l      *lexer.Lexer
-	errors []error
+	l   *lexer.Lexer
+	err error
 
 	prevToken *token.Token
 	curToken  *token.Token
@@ -21,43 +21,46 @@ type Parser struct {
 func New(l *lexer.Lexer) *Parser {
 	p := new(Parser)
 	p.l = l
-	p.errors = make([]error, 0)
-
-	p.nextToken()
-	p.nextToken()
 
 	return p
 }
 
 func (p *Parser) ParseProgram() (*ast.Program, error) {
+	for p.current() == nil {
+		err := p.nextToken()
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	program := new(ast.Program)
 	program.Statements = make([]ast.Statement, 0)
 
 	for p.current().TokenType != token.TOKEN_EOF {
 		stmt, err := p.statement()
 		if err != nil {
-			p.errors = append(p.errors, err)
+			return nil, err
 		} else if stmt != nil {
 			program.Statements = append(program.Statements, stmt)
 		}
-		p.nextToken()
-	}
-
-	if len(p.errors) > 0 {
-		return nil, errors.Join(p.errors...)
+		err = p.nextToken()
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return program, nil
 }
 
-func (p *Parser) nextToken() {
+func (p *Parser) nextToken() error {
 	p.prevToken = p.curToken
 	p.curToken = p.peekToken
 	tok, err := p.l.ScanToken()
 	if err != nil {
-		p.errors = append(p.errors, err)
+		return err
 	}
 	p.peekToken = tok
+	return nil
 }
 
 func (p *Parser) statement() (ast.Statement, error) {
@@ -66,11 +69,13 @@ func (p *Parser) statement() (ast.Statement, error) {
 
 	switch tok.TokenType {
 	case token.TOKEN_BREAK:
-		return p.breakStmt(), nil
+		return p.breakStmt()
 	case token.TOKEN_CONTINUE:
 		return p.continueStmt(), nil
 	case token.TOKEN_DEBUGGER:
-		p.consume(token.TOKEN_SEMICOLON)
+		if _, err := p.consume(token.TOKEN_SEMICOLON); err != nil {
+			return nil, err
+		}
 		return new(ast.DebuggerStatement), nil
 	case token.TOKEN_DO:
 		return p.doWhileStmt()
@@ -83,7 +88,9 @@ func (p *Parser) statement() (ast.Statement, error) {
 	case token.TOKEN_RETURN:
 		return p.returnStmt()
 	case token.TOKEN_SEMICOLON:
-		p.consume(token.TOKEN_SEMICOLON)
+		if _, err := p.consume(token.TOKEN_SEMICOLON); err != nil {
+			return nil, err
+		}
 		return new(ast.EmptyStatement), nil
 	case token.TOKEN_SWITCH:
 		return p.switchStmt()
@@ -111,7 +118,9 @@ func (p *Parser) tryStmt() (ast.Statement, error) {
 }
 
 func (p *Parser) throwStmt() (ast.Statement, error) {
-	p.consume(token.TOKEN_THROW)
+	if _, err := p.consume(token.TOKEN_THROW); err != nil {
+		return nil, err
+	}
 
 	p.skip(token.TOKEN_SPACE, token.TOKEN_MULTI_LINE_COMMENT)
 
@@ -180,10 +189,12 @@ func (p *Parser) returnStmt() (ast.Statement, error) {
 	}, nil
 }
 
-func (p *Parser) breakStmt() ast.Statement {
+func (p *Parser) breakStmt() (ast.Statement, error) {
 	var label ast.Expression
 
-	p.consume(token.TOKEN_BREAK)
+	if _, err := p.consume(token.TOKEN_BREAK); err != nil {
+		return nil, err
+	}
 
 	p.skip(token.TOKEN_SPACE, token.TOKEN_MULTI_LINE_COMMENT)
 	if p.match(token.TOKEN_IDENTIFIER) {
@@ -193,9 +204,13 @@ func (p *Parser) breakStmt() ast.Statement {
 
 	p.skipAndConsume(token.TOKEN_SEMICOLON)
 
+	if p.isSyntaxError() {
+		return nil, p.err
+	}
+
 	return &ast.BreakStatement{
 		Label: label,
-	}
+	}, nil
 }
 
 func (p *Parser) continueStmt() ast.Statement {
@@ -828,13 +843,24 @@ func (p *Parser) arrayLiteral() (ast.Expression, error) {
 	list := make([]ast.Expression, 0)
 
 	for !p.skipAndMatch(token.TOKEN_RIGHT_BRACKET) {
+		if p.isSyntaxError() {
+			return nil, p.err
+		}
+
 		tok := p.peek()
 		switch tok.TokenType {
 		case token.TOKEN_COMMA:
 			list = append(list, &ast.Elision{})
 			p.advance()
+			if p.isSyntaxError() {
+				return nil, p.err
+			}
 		case token.TOKEN_DOT_DOT_DOT:
 			p.advance()
+			if p.isSyntaxError() {
+				return nil, p.err
+			}
+
 			expr, err := p.assignmentExpr()
 			if err != nil {
 				return nil, err
@@ -864,8 +890,10 @@ func (p *Parser) arrayLiteral() (ast.Expression, error) {
 
 func (p *Parser) primaryExpr() (expr ast.Expression, err error) {
 	p.skip()
-
 	tok := p.current()
+	if p.isSyntaxError() {
+		return nil, p.err
+	}
 
 	switch tok.TokenType {
 	case token.TOKEN_IDENTIFIER:
@@ -880,6 +908,9 @@ func (p *Parser) primaryExpr() (expr ast.Expression, err error) {
 		expr = &ast.Literal{Value: tok.Literal, Kind: ast.LitString}
 	case token.TOKEN_LEFT_BRACKET:
 		p.advance()
+		if p.isSyntaxError() {
+			return nil, p.err
+		}
 		expr, err = p.arrayLiteral()
 		return
 	default:
@@ -887,18 +918,22 @@ func (p *Parser) primaryExpr() (expr ast.Expression, err error) {
 	}
 
 	p.advance()
+	if p.isSyntaxError() {
+		return nil, p.err
+	}
 
 	return
 }
 
-func (p *Parser) consume(tok token.TokenType) (*token.Token, error) {
+func (p *Parser) consume(tokType token.TokenType) (*token.Token, error) {
 	if p.isEnd() {
 		return nil, errors.New("unexpected termination")
 	}
-	if p.current().TokenType == tok {
-		return p.advance(), nil
+	if p.current().TokenType == tokType {
+		tok := p.advance()
+		return tok, p.err
 	}
-	return nil, fmt.Errorf("unexpected token %s", tok)
+	return nil, fmt.Errorf("unexpected token %s", tokType)
 }
 
 func (p *Parser) skip(skipTypes ...token.TokenType) {
@@ -939,7 +974,11 @@ func (p *Parser) skipAndMatch(tokTypes ...token.TokenType) bool {
 
 func (p *Parser) advance() *token.Token {
 	if !p.isEnd() {
-		p.nextToken()
+		err := p.nextToken()
+		if err != nil {
+			p.err = err
+			return nil
+		}
 	}
 	return p.previous()
 }
@@ -959,4 +998,8 @@ func (p *Parser) peek() *token.Token {
 
 func (p *Parser) previous() *token.Token {
 	return p.prevToken
+}
+
+func (p *Parser) isSyntaxError() bool {
+	return p.err != nil
 }

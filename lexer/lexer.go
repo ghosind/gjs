@@ -1,9 +1,9 @@
 package lexer
 
 import (
-	"errors"
 	"unicode/utf8"
 
+	"github.com/ghosind/gjs/errors"
 	"github.com/ghosind/gjs/token"
 )
 
@@ -27,340 +27,348 @@ func New(source []byte) *Lexer {
 	return l
 }
 
-func (s *Lexer) ScanToken() (*token.Token, error) {
-	if !s.isEnd() {
-		s.start = s.cur
-		s.width = 0
-		tok, err := s.scanToken()
+func (l *Lexer) ScanToken() (*token.Token, error) {
+	if !l.isEnd() {
+		l.start = l.cur
+		l.width = 0
+		tok, err := l.scanToken()
 		if err != nil {
 			return nil, err
 		}
 
-		s.col += s.width
+		l.col += l.width
 		return tok, nil
 	}
 
 	return &token.Token{
 		TokenType: token.TOKEN_EOF,
-		Line:      s.line,
-		Col:       s.col,
+		Line:      l.line,
+		Col:       l.col,
 	}, nil
 }
 
-func (s *Lexer) scanToken() (*token.Token, error) {
+func (l *Lexer) scanToken() (*token.Token, error) {
 	var tok *token.Token
 
-	c := s.advance()
+	c := l.advance()
 	switch c {
 	case '(':
-		tok = s.newToken(token.TOKEN_LEFT_PAREN)
+		tok = l.newToken(token.TOKEN_LEFT_PAREN)
 	case ')':
-		tok = s.newToken(token.TOKEN_RIGHT_PAREN)
+		tok = l.newToken(token.TOKEN_RIGHT_PAREN)
 	case '{':
-		tok = s.newToken(token.TOKEN_LEFT_BRACE)
+		tok = l.newToken(token.TOKEN_LEFT_BRACE)
 	case '}':
-		tok = s.newToken(token.TOKEN_RIGHT_BRACE)
+		tok = l.newToken(token.TOKEN_RIGHT_BRACE)
 	case '[':
-		tok = s.newToken(token.TOKEN_LEFT_BRACKET)
+		tok = l.newToken(token.TOKEN_LEFT_BRACKET)
 	case ']':
-		tok = s.newToken(token.TOKEN_RIGHT_BRACKET)
+		tok = l.newToken(token.TOKEN_RIGHT_BRACKET)
 	case '&':
-		if s.match('&') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_AND_AND_EQUAL)
+		if l.match('&') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_AND_AND_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_AND_AND)
+				tok = l.newToken(token.TOKEN_AND_AND)
 			}
-		} else if s.match('=') {
-			tok = s.newToken(token.TOKEN_AND_EQUAL)
+		} else if l.match('=') {
+			tok = l.newToken(token.TOKEN_AND_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_AND)
+			tok = l.newToken(token.TOKEN_AND)
 		}
 	case '!':
-		if s.match('=') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_BANG_EQUAL_EQUAL)
+		if l.match('=') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_BANG_EQUAL_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_BANG_EQUAL)
+				tok = l.newToken(token.TOKEN_BANG_EQUAL)
 			}
 		} else {
-			tok = s.newToken(token.TOKEN_BANG)
+			tok = l.newToken(token.TOKEN_BANG)
 		}
 	case ':':
-		tok = s.newToken(token.TOKEN_COLON)
+		tok = l.newToken(token.TOKEN_COLON)
 	case ',':
-		tok = s.newToken(token.TOKEN_COMMA)
+		tok = l.newToken(token.TOKEN_COMMA)
 	case '.':
-		if s.peek() == '.' && s.peekNext() == '.' {
-			tok = s.newToken(token.TOKEN_DOT_DOT_DOT)
-			s.advance()
-			s.advance()
+		if l.peek() == '.' && l.peekNext() == '.' {
+			tok = l.newToken(token.TOKEN_DOT_DOT_DOT)
+			l.advance()
+			l.advance()
 		} else {
-			tok = s.newToken(token.TOKEN_DOT)
+			tok = l.newToken(token.TOKEN_DOT)
 		}
 	case '=':
-		if s.match('=') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_EQUAL_EQUAL_EQUAL)
+		if l.match('=') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_EQUAL_EQUAL_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_EQUAL_EQUAL)
+				tok = l.newToken(token.TOKEN_EQUAL_EQUAL)
 			}
 		} else {
-			tok = s.newToken(token.TOKEN_EQUAL)
+			tok = l.newToken(token.TOKEN_EQUAL)
 		}
 	case '>':
-		if s.match('=') {
-			tok = s.newToken(token.TOKEN_GREATER_EQUAL)
-		} else if s.match('>') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_GREATER_GREATER_EQUAL)
-			} else if s.match('>') {
-				if s.match('=') {
-					tok = s.newToken(token.TOKEN_GREATER_GREATER_GREATER_EQUAL)
+		if l.match('=') {
+			tok = l.newToken(token.TOKEN_GREATER_EQUAL)
+		} else if l.match('>') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_GREATER_GREATER_EQUAL)
+			} else if l.match('>') {
+				if l.match('=') {
+					tok = l.newToken(token.TOKEN_GREATER_GREATER_GREATER_EQUAL)
 				} else {
-					tok = s.newToken(token.TOKEN_GREATER_GREATER_GREATER)
+					tok = l.newToken(token.TOKEN_GREATER_GREATER_GREATER)
 				}
 			} else {
-				tok = s.newToken(token.TOKEN_GREATER_GREATER)
+				tok = l.newToken(token.TOKEN_GREATER_GREATER)
 			}
 		} else {
-			tok = s.newToken(token.TOKEN_GREATER)
+			tok = l.newToken(token.TOKEN_GREATER)
 		}
 	case '#':
-		if s.match('!') {
-			for !s.isLineTerminator(s.peek()) && !s.isEnd() {
-				s.advance()
+		if l.match('!') {
+			for !l.isLineTerminator(l.peek()) && !l.isEnd() {
+				l.advance()
 			}
-			text := string(s.source[s.start+2 : s.cur])
-			tok = s.newTokenWithLiteral(token.TOKEN_HASH_BANG, text)
+			text := string(l.source[l.start+2 : l.cur])
+			tok = l.newTokenWithLiteral(token.TOKEN_HASH_BANG, text)
 		} else {
-			tok = s.newToken(token.TOKEN_HASH)
+			tok = l.newToken(token.TOKEN_HASH)
 		}
 	case '^':
-		if s.match('=') {
-			tok = s.newToken(token.TOKEN_HAT_EQUAL)
+		if l.match('=') {
+			tok = l.newToken(token.TOKEN_HAT_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_HAT)
+			tok = l.newToken(token.TOKEN_HAT)
 		}
 	case '<':
-		if s.match('=') {
-			tok = s.newToken(token.TOKEN_LESS_EQUAL)
-		} else if s.match('<') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_LESS_LESS_EQUAL)
+		if l.match('=') {
+			tok = l.newToken(token.TOKEN_LESS_EQUAL)
+		} else if l.match('<') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_LESS_LESS_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_LESS_LESS)
+				tok = l.newToken(token.TOKEN_LESS_LESS)
 			}
 		} else {
-			tok = s.newToken(token.TOKEN_LESS)
+			tok = l.newToken(token.TOKEN_LESS)
 		}
 	case '-':
-		if s.match('-') {
-			tok = s.newToken(token.TOKEN_MINUS_MINUS)
-		} else if s.match('=') {
-			tok = s.newToken(token.TOKEN_MINUS_EQUAL)
+		if l.match('-') {
+			tok = l.newToken(token.TOKEN_MINUS_MINUS)
+		} else if l.match('=') {
+			tok = l.newToken(token.TOKEN_MINUS_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_MINUS)
+			tok = l.newToken(token.TOKEN_MINUS)
 		}
 	case '%':
-		if s.match('=') {
-			tok = s.newToken(token.TOKEN_PERCENT_EQUAL)
+		if l.match('=') {
+			tok = l.newToken(token.TOKEN_PERCENT_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_PERCENT)
+			tok = l.newToken(token.TOKEN_PERCENT)
 		}
 	case '|':
-		if s.match('|') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_PIPE_PIPE_EQUAL)
+		if l.match('|') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_PIPE_PIPE_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_PIPE_PIPE)
+				tok = l.newToken(token.TOKEN_PIPE_PIPE)
 			}
-		} else if s.match('=') {
-			tok = s.newToken(token.TOKEN_PIPE_EQUAL)
+		} else if l.match('=') {
+			tok = l.newToken(token.TOKEN_PIPE_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_PIPE)
+			tok = l.newToken(token.TOKEN_PIPE)
 		}
 	case '+':
-		if s.match('+') {
-			tok = s.newToken(token.TOKEN_PLUS_PLUS)
-		} else if s.match('=') {
-			tok = s.newToken(token.TOKEN_PLUS_EQUAL)
+		if l.match('+') {
+			tok = l.newToken(token.TOKEN_PLUS_PLUS)
+		} else if l.match('=') {
+			tok = l.newToken(token.TOKEN_PLUS_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_PLUS)
+			tok = l.newToken(token.TOKEN_PLUS)
 		}
 	case '?':
-		if s.match('?') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_QUESTION_QUESTION_EQUAL)
+		if l.match('?') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_QUESTION_QUESTION_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_QUESTION_QUESTION)
+				tok = l.newToken(token.TOKEN_QUESTION_QUESTION)
 			}
-		} else if s.match('.') {
-			tok = s.newToken(token.TOKEN_QUESTION_DOT)
+		} else if l.match('.') {
+			tok = l.newToken(token.TOKEN_QUESTION_DOT)
 		} else {
-			tok = s.newToken(token.TOKEN_QUESTION)
+			tok = l.newToken(token.TOKEN_QUESTION)
 		}
 	case ';':
-		tok = s.newToken(token.TOKEN_SEMICOLON)
+		tok = l.newToken(token.TOKEN_SEMICOLON)
 	case '/':
 		switch {
-		case s.match('/'):
-			for s.peek() != '\n' && !s.isEnd() {
-				s.advance()
+		case l.match('/'):
+			for l.peek() != '\n' && !l.isEnd() {
+				l.advance()
 			}
-			tok = s.newToken(token.TOKEN_SINGLE_LINE_COMMENT)
-		case s.match('*'):
+			tok = l.newToken(token.TOKEN_SINGLE_LINE_COMMENT)
+		case l.match('*'):
 			isClosed := false
-			line := s.line
-			col := s.col
-			width := s.width
-			for !s.isEnd() {
-				if s.match('*') && s.match('/') {
+			line := l.line
+			col := l.col
+			width := l.width
+			for !l.isEnd() {
+				if l.match('*') && l.match('/') {
 					isClosed = true
 					break
-				} else if s.isLineTerminator(s.peek()) {
+				} else if l.isLineTerminator(l.peek()) {
 					line++
 					col = 0
 					width = 0
 				}
-				s.advance()
+				l.advance()
 			}
 			if !isClosed {
-				return nil, errors.New("invalid or unexpected token")
+				return nil, l.newSyntaxError()
 			}
-			tok = s.newToken(token.TOKEN_MULTI_LINE_COMMENT)
-			s.line = line
-			s.col = col + 2
-			s.width = width + 2
-		case s.match('='):
-			tok = s.newToken(token.TOKEN_SLASH_EQUAL)
+			tok = l.newToken(token.TOKEN_MULTI_LINE_COMMENT)
+			l.line = line
+			l.col = col + 2
+			l.width = width + 2
+		case l.match('='):
+			tok = l.newToken(token.TOKEN_SLASH_EQUAL)
 		default:
-			tok = s.newToken(token.TOKEN_SLASH)
+			tok = l.newToken(token.TOKEN_SLASH)
 		}
 	case '*':
-		if s.match('*') {
-			if s.match('=') {
-				tok = s.newToken(token.TOKEN_STAR_STAR_EQUAL)
+		if l.match('*') {
+			if l.match('=') {
+				tok = l.newToken(token.TOKEN_STAR_STAR_EQUAL)
 			} else {
-				tok = s.newToken(token.TOKEN_STAR_STAR)
+				tok = l.newToken(token.TOKEN_STAR_STAR)
 			}
-		} else if s.match('=') {
-			tok = s.newToken(token.TOKEN_STAR_EQUAL)
+		} else if l.match('=') {
+			tok = l.newToken(token.TOKEN_STAR_EQUAL)
 		} else {
-			tok = s.newToken(token.TOKEN_STAR)
+			tok = l.newToken(token.TOKEN_STAR)
 		}
 	case '~':
-		tok = s.newToken(token.TOKEN_TILDE)
+		tok = l.newToken(token.TOKEN_TILDE)
 	case '"', '\'', '`':
-		if t, err := s.string(c); err != nil {
+		if t, err := l.string(c); err != nil {
 			return nil, err
 		} else {
 			tok = t
 		}
 	case '\n', '\r', 0x2028, 0x2029:
 		if c == '\r' {
-			s.match('\n')
+			l.match('\n')
 		}
-		tok = s.newToken(token.TOKEN_NEW_LINE)
-		s.line++
-		s.col = 0
+		tok = l.newToken(token.TOKEN_NEW_LINE)
+		l.line++
+		l.col = 0
 	case ' ', '\t', '\v', '\f', 0xA0, 0xFEFF:
 		// skip white-spaces
-		if s.isSpace(s.peek()) {
-			s.advance()
+		if l.isSpace(l.peek()) {
+			l.advance()
 		}
-		tok = s.newToken(token.TOKEN_SPACE)
+		tok = l.newToken(token.TOKEN_SPACE)
 	default:
-		if s.isDigit(c) {
-			tok = s.number()
-		} else if s.isAlpha(c) {
-			tok = s.identifier()
+		if l.isAlpha(c) || c == '$' || c == '_' {
+			tok = l.identifier()
+		} else if l.isDigit(c) {
+			t, err := l.number()
+			if err != nil {
+				return nil, err
+			}
+			tok = t
 		} else {
-			return nil, errors.New("unexpected character")
+			return nil, l.newSyntaxError()
 		}
 	}
 
 	return tok, nil
 }
 
-func (s *Lexer) newToken(tok token.TokenType) *token.Token {
-	text := string(s.source[s.start:s.cur])
-	return s.newTokenWithLiteral(tok, text)
+func (l *Lexer) newToken(tok token.TokenType) *token.Token {
+	text := string(l.source[l.start:l.cur])
+	return l.newTokenWithLiteral(tok, text)
 }
 
-func (s *Lexer) newTokenWithLiteral(tok token.TokenType, lit string) *token.Token {
+func (l *Lexer) newTokenWithLiteral(tok token.TokenType, lit string) *token.Token {
 	return &token.Token{
 		TokenType: tok,
-		Line:      s.line,
-		Col:       s.col,
+		Line:      l.line,
+		Col:       l.col,
 		Literal:   lit,
 	}
 }
 
-func (s *Lexer) isEnd() bool {
-	return s.cur >= len(s.source)
+func (l *Lexer) isEnd() bool {
+	return l.cur >= len(l.source)
 }
 
-func (s *Lexer) advance() rune {
-	r, width := utf8.DecodeRune(s.source[s.cur:])
-	s.cur += width
-	s.width++
+func (l *Lexer) advance() rune {
+	r, width := utf8.DecodeRune(l.source[l.cur:])
+	l.cur += width
+	l.width++
 	return r
 }
 
-func (s *Lexer) match(expected rune) bool {
-	if s.isEnd() {
+func (l *Lexer) match(expected rune) bool {
+	if l.isEnd() {
 		return false
 	}
-	r, width := utf8.DecodeRune(s.source[s.cur:])
+	r, width := utf8.DecodeRune(l.source[l.cur:])
 	if r != expected {
 		return false
 	}
 
-	s.cur += width
-	s.width++
+	l.cur += width
+	l.width++
 	return true
 }
 
-func (s *Lexer) peek() rune {
-	if s.isEnd() {
+func (l *Lexer) peek() rune {
+	if l.isEnd() {
 		return 0
 	}
-	r, _ := utf8.DecodeRune(s.source[s.cur:])
+	r, _ := utf8.DecodeRune(l.source[l.cur:])
 	return r
 }
 
-func (s *Lexer) peekNext() rune {
-	if s.cur+1 >= len(s.source) {
+func (l *Lexer) peekNext() rune {
+	if l.cur+1 >= len(l.source) {
 		return 0
 	}
-	_, width := utf8.DecodeRune(s.source[s.cur:])
-	r, _ := utf8.DecodeRune(s.source[s.cur+width:])
+	_, width := utf8.DecodeRune(l.source[l.cur:])
+	r, _ := utf8.DecodeRune(l.source[l.cur+width:])
 	return r
 }
 
-func (s *Lexer) number() *token.Token {
-	for s.isDigit(s.peek()) {
-		s.advance()
+func (l *Lexer) number() (*token.Token, error) {
+	for l.isDigit(l.peek()) {
+		l.advance()
 	}
 
-	if s.peek() == '.' && s.isDigit(s.peekNext()) {
-		s.advance()
+	if l.peek() == '.' && l.isDigit(l.peekNext()) {
+		l.advance()
 
-		for s.isDigit(s.peek()) {
-			s.advance()
+		for l.isDigit(l.peek()) {
+			l.advance()
 		}
 	}
 
-	return s.newToken(token.TOKEN_NUMBER)
+	if l.isAlpha(l.peek()) {
+		return nil, l.newSyntaxError()
+	}
+
+	return l.newToken(token.TOKEN_NUMBER), nil
 }
 
-func (s *Lexer) string(quote rune) (*token.Token, error) {
+func (l *Lexer) string(quote rune) (*token.Token, error) {
 	isEscape := false
-	tok := s.peek()
-	for !s.isEnd() {
-		if s.isLineTerminator(tok) {
-			return nil, errors.New("unexpected new line")
+	tok := l.peek()
+	for !l.isEnd() {
+		if l.isLineTerminator(tok) {
+			return nil, l.newSyntaxError()
 		}
 
 		if !isEscape {
@@ -373,54 +381,71 @@ func (s *Lexer) string(quote rune) (*token.Token, error) {
 			isEscape = false
 		}
 
-		s.advance()
-		tok = s.peek()
+		l.advance()
+		tok = l.peek()
 	}
 
-	if s.isEnd() {
-		return nil, errors.New("unterminated string")
+	if l.isEnd() {
+		return nil, l.newSyntaxError()
 	}
 
-	s.advance()
+	l.advance()
 
-	value := s.source[s.start+1 : s.cur-1]
-	return s.newTokenWithLiteral(token.TOKEN_STRING, string(value)), nil
+	value := l.source[l.start+1 : l.cur-1]
+	return l.newTokenWithLiteral(token.TOKEN_STRING, string(value)), nil
 }
 
-func (s *Lexer) identifier() *token.Token {
-	for s.isAlphaNumeric(s.peek()) {
-		s.advance()
+func (l *Lexer) identifier() *token.Token {
+	for l.isAlphaNumeric(l.peek()) {
+		l.advance()
 	}
 
-	tokenType := token.LookupIdent(string(s.source[s.start:s.cur]))
-	return s.newToken(tokenType)
+	tokenType := token.LookupIdent(string(l.source[l.start:l.cur]))
+	return l.newToken(tokenType)
 }
 
-func (s *Lexer) isDigit(c rune) bool {
+func (l *Lexer) isDigit(c rune) bool {
 	return c >= '0' && c <= '9'
 }
 
-func (s *Lexer) isAlpha(c rune) bool {
+func (l *Lexer) isAlpha(c rune) bool {
 	return (c >= 'a' && c <= 'z') ||
 		(c >= 'A' && c <= 'Z') ||
 		c == '_' || c == '$'
 }
 
-func (s *Lexer) isAlphaNumeric(c rune) bool {
-	return s.isAlpha(c) || s.isDigit(c)
+func (l *Lexer) isAlphaNumeric(c rune) bool {
+	return l.isAlpha(c) || l.isDigit(c)
 }
 
-func (s *Lexer) isSpace(c rune) bool {
+func (l *Lexer) isSpace(c rune) bool {
 	return c == ' ' || c == '\t' || c == '\v' || c == '\f' || c == 0xA0 || c == 0xFEFF
 }
 
-func (s *Lexer) isLineTerminator(c rune) bool {
+func (l *Lexer) isLineTerminator(c rune) bool {
 	switch c {
 	case '\n', 0x2028, 0x2029:
 		return true
 	case '\r':
-		s.match('\n')
+		l.match('\n')
 		return true
 	}
 	return false
+}
+
+func (l *Lexer) newSyntaxError() error {
+	line := l.getCurrentLine()
+	return errors.NewLexerError(line, l.col)
+}
+
+func (l *Lexer) getCurrentLine() string {
+	lineStart := l.cur - l.width
+	for lineStart > 0 && l.source[lineStart-1] != '\n' {
+		lineStart--
+	}
+	lineEnd := l.cur
+	for lineEnd < len(l.source) && l.source[lineEnd] != '\n' {
+		lineEnd++
+	}
+	return string(l.source[lineStart:lineEnd])
 }

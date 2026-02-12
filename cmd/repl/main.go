@@ -27,7 +27,7 @@ func main() {
 		p := parser.New(l)
 		program, err := p.ParseProgram()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "parser error: %s\n", err)
+			fmt.Fprintln(os.Stderr, err.Error())
 			continue
 		}
 		evaluated := eval.Eval(program)
