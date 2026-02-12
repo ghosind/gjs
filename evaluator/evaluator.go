@@ -16,24 +16,33 @@ var (
 	FALSE = &value.Boolean{Value: false}
 )
 
-func Eval(node ast.Node, env *runtime.Runtime) value.Value {
+type Evaluator struct {
+	env *runtime.Runtime
+}
+
+func New(env *runtime.Runtime) *Evaluator {
+	return &Evaluator{env: env}
+}
+
+func (e *Evaluator) Eval(node ast.Node) value.Value {
 	switch node := node.(type) {
-	// Statements
 	case *ast.Program:
-		return evalProgram(node, env)
-	case *ast.ExpressionStatement:
-		return Eval(node.Expression, env)
+		return e.evalProgram(node)
+	// Statement
 	case *ast.BlockStatement:
-		return evalBlockStatement(node, env)
-	case *ast.ReturnStatement:
-		val := Eval(node.Result, env)
-		return val
-	case *ast.VarDeclaration:
-		val := Eval(node.Value, env)
-		if isError(val) {
-			return val
+		return e.evalBlockStatement(node)
+	case *ast.VarStatement:
+		for _, decl := range node.Declarations {
+			e.Eval(decl)
 		}
-		env.Set(node.Name.Value, val)
+	case *ast.ExpressionStatement:
+		return e.Eval(node.Expression)
+	case *ast.IfStatement:
+		return e.evalIfExpression(node)
+	case *ast.ReturnStatement:
+		return e.Eval(node.Result)
+
+	// Expression
 	case *ast.Literal:
 		switch node.Kind {
 		case ast.LitNumber:
@@ -52,45 +61,56 @@ func Eval(node ast.Node, env *runtime.Runtime) value.Value {
 		default:
 			return newError("unknown literal kind: %d", node.Kind)
 		}
+	case *ast.Identifier:
+		return e.evalIdentifier(node)
 	case *ast.UnaryExpression:
-		right := Eval(node.Value, env)
-		if isError(right) {
-			return right
-		}
+		right := e.Eval(node.Value)
 		return evalUnaryExpression(node.Operator, right)
 	case *ast.BinaryExpression:
-		left := Eval(node.Left, env)
-		if isError(left) {
-			return left
-		}
-		right := Eval(node.Right, env)
-		if isError(right) {
-			return right
-		}
+		left := e.Eval(node.Left)
+		right := e.Eval(node.Right)
 		return evalBinaryExpression(node.Operator, left, right)
-	case *ast.Identifier:
-		return evalIdentifier(node, env)
-	case *ast.IfStatement:
-		return evalIfExpression(node, env)
+
+	// Declaration
+	case *ast.VariableDeclaration:
+		val := e.Eval(node.Value)
+		e.env.Set(node.Name.Value, val)
 	}
 
 	return nil
 }
 
-func evalProgram(program *ast.Program, env *runtime.Runtime) value.Value {
-	var result value.Value
+func (e *Evaluator) evalProgram(program *ast.Program) value.Value {
+	var res value.Value
 	for _, statement := range program.Statements {
-		result = Eval(statement, env)
+		res = e.Eval(statement)
 	}
-	return result
+	return res
 }
 
-func evalBlockStatement(block *ast.BlockStatement, env *runtime.Runtime) value.Value {
-	var result value.Value
+func (e *Evaluator) evalBlockStatement(block *ast.BlockStatement) value.Value {
+	var res value.Value
 	for _, statement := range block.StatementList {
-		result = Eval(statement, env)
+		res = e.Eval(statement)
 	}
-	return result
+	return res
+}
+
+func (e *Evaluator) evalIfExpression(ie *ast.IfStatement) value.Value {
+	condition := e.Eval(ie.Condition)
+	if isTruthy(condition) {
+		return e.Eval(ie.TrueBranch)
+	} else if ie.FalseBranch != nil {
+		return e.Eval(ie.FalseBranch)
+	}
+	return nil
+}
+
+func (e *Evaluator) evalIdentifier(node *ast.Identifier) value.Value {
+	if val, ok := e.env.Get(node.Value); ok {
+		return val
+	}
+	return newError("identifier not found: " + node.Value)
 }
 
 func evalUnaryExpression(operator *token.Token, right value.Value) value.Value {
@@ -176,20 +196,6 @@ func evalNumberBinaryExpression(operator *token.Token, left, right value.Value) 
 	}
 }
 
-func evalIfExpression(ie *ast.IfStatement, env *runtime.Runtime) value.Value {
-	condition := Eval(ie.Condition, env)
-	if isError(condition) {
-		return condition
-	}
-	if isTruthy(condition) {
-		return Eval(ie.TrueBranch, env)
-	} else if ie.FalseBranch != nil {
-		return Eval(ie.FalseBranch, env)
-	} else {
-		return NULL
-	}
-}
-
 func isTruthy(obj value.Value) bool {
 	switch obj {
 	case NULL:
@@ -208,13 +214,6 @@ func nativeBoolToBooleanObject(input bool) *value.Boolean {
 		return TRUE
 	}
 	return FALSE
-}
-
-func evalIdentifier(node *ast.Identifier, env *runtime.Runtime) value.Value {
-	if val, ok := env.Get(node.Value); ok {
-		return val
-	}
-	return newError("identifier not found: " + node.Value)
 }
 
 func newError(format string, a ...interface{}) value.Value {

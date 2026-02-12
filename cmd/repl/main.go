@@ -11,11 +11,12 @@ import (
 	"github.com/ghosind/gjs/runtime"
 )
 
-const PROMPT = "gjs> "
+const PROMPT = "> "
 
 func main() {
 	scanner := bufio.NewScanner(os.Stdin)
 	env := runtime.New()
+	eval := evaluator.New(env)
 	for {
 		fmt.Print(PROMPT)
 		if !scanner.Scan() {
@@ -29,7 +30,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "parser error: %s\n", err)
 			continue
 		}
-		evaluated := evaluator.Eval(program, env)
+		evaluated := eval.Eval(program)
 		if evaluated != nil {
 			fmt.Fprintln(os.Stdout, evaluated.Inspect())
 		}

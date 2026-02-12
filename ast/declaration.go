@@ -6,13 +6,13 @@ type Declaration interface {
 	Node
 }
 
-type VarDeclaration struct {
+type VariableDeclaration struct {
 	Declaration
 	Name  *Identifier
 	Value Expression
 }
 
-func (d *VarDeclaration) String() string {
+func (d *VariableDeclaration) String() string {
 	buf := new(bytes.Buffer)
 	buf.WriteString(d.Name.String())
 	if d.Value != nil {

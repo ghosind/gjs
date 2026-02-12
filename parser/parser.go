@@ -33,7 +33,7 @@ func (p *Parser) ParseProgram() (*ast.Program, error) {
 	program := new(ast.Program)
 	program.Statements = make([]ast.Statement, 0)
 
-	for p.curToken.TokenType != token.TOKEN_EOF {
+	for p.current().TokenType != token.TOKEN_EOF {
 		stmt, err := p.statement()
 		if err != nil {
 			p.errors = append(p.errors, err)
@@ -62,7 +62,7 @@ func (p *Parser) nextToken() {
 
 func (p *Parser) statement() (ast.Statement, error) {
 	p.skip()
-	tok := p.peek()
+	tok := p.current()
 
 	switch tok.TokenType {
 	case token.TOKEN_BREAK:
@@ -92,7 +92,7 @@ func (p *Parser) statement() (ast.Statement, error) {
 	case token.TOKEN_TRY:
 		return p.tryStmt()
 	case token.TOKEN_VAR:
-		return p.varStmt()
+		return p.variableStatement()
 	case token.TOKEN_WHILE:
 		return p.whileStmt()
 	default:
@@ -364,31 +364,47 @@ func (p *Parser) ifStat() (ast.Statement, error) {
 	}, nil
 }
 
-func (p *Parser) varStmt() (ast.Statement, error) {
+func (p *Parser) initializer() (ast.Expression, error) {
+	if p.skipAndMatch(token.TOKEN_EQUAL) {
+		return p.assignmentExpr()
+	}
+
+	return nil, nil
+}
+
+func (p *Parser) variableDeclaration() (ast.Declaration, error) {
+	name := p.previous()
+	decl := &ast.VariableDeclaration{
+		Name: &ast.Identifier{
+			Value: name.Literal,
+		},
+	}
+	initializer, err := p.initializer()
+	if err != nil {
+		return nil, err
+	}
+	decl.Value = initializer
+	return decl, nil
+}
+
+func (p *Parser) variableStatement() (ast.Statement, error) {
 	p.consume(token.TOKEN_VAR)
 	decls := make([]ast.Declaration, 0)
 
 	for p.skipAndMatch(token.TOKEN_IDENTIFIER) {
-		name := p.previous()
-		decl := &ast.VarDeclaration{
-			Name: &ast.Identifier{
-				Value: name.Literal,
-			},
-		}
-		if p.skipAndMatch(token.TOKEN_EQUAL) {
-			expr, err := p.assignmentExpr()
-			if err != nil {
-				return nil, err
-			} else if expr == nil {
-				return nil, fmt.Errorf("unexpected token %v", p.peek())
-			}
-			decl.Value = expr
+		decl, err := p.variableDeclaration()
+		if err != nil {
+			return nil, err
 		}
 
 		decls = append(decls, decl)
 		if !p.skipAndMatch(token.TOKEN_COMMA) {
 			break
 		}
+	}
+
+	if len(decls) == 0 {
+		return nil, p.newSyntaxError(p.curToken)
 	}
 
 	p.skipAndConsume(token.TOKEN_SEMICOLON)
@@ -433,45 +449,12 @@ func (p *Parser) expression() (ast.Expression, error) {
 }
 
 func (p *Parser) assignmentExpr() (ast.Expression, error) {
-	// TODO: Update cur logic
-	cur := p.curToken
-	expr, err := p.leftHandSideExpr()
+	expr, err := p.conditionalExpr()
 	if err != nil {
 		return nil, err
-	} else if expr != nil {
-		if p.skipAndMatch(token.TOKEN_EQUAL,
-			token.TOKEN_STAR_EQUAL,
-			token.TOKEN_SLASH_EQUAL,
-			token.TOKEN_PERCENT_EQUAL,
-			token.TOKEN_PLUS_EQUAL,
-			token.TOKEN_MINUS_EQUAL,
-			token.TOKEN_LESS_LESS_EQUAL,
-			token.TOKEN_GREATER_GREATER_EQUAL,
-			token.TOKEN_GREATER_GREATER_GREATER_EQUAL,
-			token.TOKEN_AND_EQUAL,
-			token.TOKEN_HAT_EQUAL,
-			token.TOKEN_PIPE_EQUAL,
-			token.TOKEN_STAR_STAR_EQUAL,
-			token.TOKEN_AND_AND_EQUAL,
-			token.TOKEN_PIPE_PIPE_EQUAL,
-			token.TOKEN_QUESTION_QUESTION_EQUAL,
-		) {
-			op := p.previous()
-			right, err := p.assignmentExpr()
-			if err != nil {
-				return nil, err
-			}
-
-			return &ast.BinaryExpression{
-				Operator: op,
-				Left:     expr,
-				Right:    right,
-			}, nil
-		}
 	}
-	p.curToken = cur
 
-	return p.conditionalExpr()
+	return expr, nil
 }
 
 func (p *Parser) conditionalExpr() (ast.Expression, error) {
@@ -882,7 +865,7 @@ func (p *Parser) arrayLiteral() (ast.Expression, error) {
 func (p *Parser) primaryExpr() (expr ast.Expression, err error) {
 	p.skip()
 
-	tok := p.peek()
+	tok := p.current()
 
 	switch tok.TokenType {
 	case token.TOKEN_IDENTIFIER:
@@ -912,7 +895,7 @@ func (p *Parser) consume(tok token.TokenType) (*token.Token, error) {
 	if p.isEnd() {
 		return nil, errors.New("unexpected termination")
 	}
-	if p.peek().TokenType == tok {
+	if p.current().TokenType == tok {
 		return p.advance(), nil
 	}
 	return nil, fmt.Errorf("unexpected token %s", tok)
@@ -938,7 +921,7 @@ func (p *Parser) skipAndConsume(tok token.TokenType) (*token.Token, error) {
 }
 
 func (p *Parser) match(tokTypes ...token.TokenType) bool {
-	tok := p.peek()
+	tok := p.current()
 	for _, tokType := range tokTypes {
 		if tok.TokenType == tokType {
 			p.advance()
@@ -962,8 +945,12 @@ func (p *Parser) advance() *token.Token {
 }
 
 func (p *Parser) isEnd() bool {
-	tok := p.peek()
+	tok := p.current()
 	return tok == nil || tok.TokenType == token.TOKEN_EOF
+}
+
+func (p *Parser) current() *token.Token {
+	return p.curToken
 }
 
 func (p *Parser) peek() *token.Token {
