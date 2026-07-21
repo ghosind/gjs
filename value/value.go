@@ -128,3 +128,38 @@ func (o *Object) Inspect() string {
 	buf.WriteString("}")
 	return buf.String()
 }
+
+type Function struct {
+	Parameters []string
+	Body       interface{} // *ast.BlockStatement - stored as interface{} to avoid circular import
+	Env        interface{} // *runtime.Runtime - stored as interface{} to avoid circular import
+}
+
+func (f *Function) Type() DataType {
+	return DataType_Object
+}
+
+func (f *Function) Inspect() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString("function(")
+	for i, p := range f.Parameters {
+		buf.WriteString(p)
+		if i < len(f.Parameters)-1 {
+			buf.WriteString(", ")
+		}
+	}
+	buf.WriteString(") { ... }")
+	return buf.String()
+}
+
+type ErrorValue struct {
+	Message string
+}
+
+func (e *ErrorValue) Type() DataType {
+	return DataType_Object
+}
+
+func (e *ErrorValue) Inspect() string {
+	return "Error: " + e.Message
+}

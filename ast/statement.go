@@ -73,7 +73,7 @@ func (s *IfStatement) String() string {
 }
 
 type ForStatement struct {
-	Init      Statement
+	Init      Expression
 	Condition Expression
 	Update    Expression
 	Body      Statement
@@ -254,4 +254,26 @@ type DebuggerStatement struct {
 
 func (s *DebuggerStatement) String() string {
 	return "debugger;"
+}
+
+type FunctionStatement struct {
+	Name       *Identifier
+	Parameters []*Identifier
+	Body       *BlockStatement
+}
+
+func (s *FunctionStatement) String() string {
+	buf := new(bytes.Buffer)
+	buf.WriteString("function ")
+	buf.WriteString(s.Name.String())
+	buf.WriteString("(")
+	for i, p := range s.Parameters {
+		buf.WriteString(p.String())
+		if i < len(s.Parameters)-1 {
+			buf.WriteString(", ")
+		}
+	}
+	buf.WriteString(") ")
+	buf.WriteString(s.Body.String())
+	return buf.String()
 }
